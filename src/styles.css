@@ -1,0 +1,65 @@
+/* Modern Button Styling */
+.modern-btn {
+    border: none;
+    border-radius: 30px; /* Rounded corners */
+    padding: 10px 20px; /* Larger padding for a modern feel */
+    font-size: 16px; /* Slightly larger font size */
+    font-weight: bold;
+    transition: all 0.3s ease; /* Smooth transitions */
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+  }
+  
+  .modern-btn:hover {
+    transform: translateY(-2px); /* Slight upward motion on hover */
+    box-shadow: 0px 6px 8px rgba(0, 0, 0, 0.2); /* Enhance shadow on hover */
+    filter: brightness(1.1); /* Slight brightness boost */
+  }
+  
+  .modern-btn:disabled {
+    background-color: #d6d6d6 !important; /* Gray out the button */
+    color: #999999 !important;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  
+  .btn-primary {
+    background: linear-gradient(90deg, #007bff, #0056d2); /* Gradient effect */
+    color: white;
+  }
+  
+  .btn-danger {
+    background: linear-gradient(90deg, #ff4d4d, #c41c1c);
+    color: white;
+  }
+
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(72, 239, 128, 0.7);
+    }
+    70% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 10px rgba(72, 239, 128, 0);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(72, 239, 128, 0);
+    }
+  }
+  
+  .pulse-animation {
+    animation: pulse 1.5s ease-out infinite;
+  }
+  
+  .fade-in-subtext {
+    animation: fadeIn 1s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  
+  
+  

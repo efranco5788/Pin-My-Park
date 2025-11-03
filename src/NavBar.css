@@ -1,0 +1,42 @@
+/* General spacing between nav items */
+.navbarItem {
+  margin: 0.75rem 0;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  color: white;
+  display: block;
+}
+
+/* Dropdown menu container */
+.menuDiv {
+  /*position: fixed!important;*/
+  z-index: 9999!important;
+  background-color: rgba(0, 0, 0, 0.85); /* Black, 85% opaque */
+  border-radius: 10px;
+  padding: 0.5rem 0;
+  min-width: 160px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Remove default list styling */
+li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Link styling */
+li a {
+  text-decoration: none;
+  color: white;
+  display: block;
+  width: 100%;
+  transition: background 0.3s ease;
+}
+
+/* Improve tap target and hover/focus feedback */
+li a:hover,
+li a:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
