@@ -19,17 +19,9 @@
   "scripts": {
     "start": "node --max-old-space-size=4096 node_modules/.bin/react-scripts --openssl-legacy-provider start",
     "build": "node --max-old-space-size=4096 node_modules/.bin/react-scripts --openssl-legacy-provider build",
-    "postbuild": "npx react-snap",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
-   "reactSnap": {
-    "inlineCss": true,
-    "minifyHtml": true,
-    "preloadImages": true,
-    "puppeteerArgs": ["--no-sandbox", "--disable-setuid-sandbox"],
-    "skipThirdPartyRequests": false
-  }, 
   "eslintConfig": {
     "extends": [
       "react-app",

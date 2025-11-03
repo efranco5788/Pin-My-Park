@@ -15,10 +15,4 @@ root.render(
   </React.StrictMode>
 );
 
-// For react-snap compatibility
-if (navigator.userAgent === 'ReactSnap') {
-  const root = document.getElementById('root');
-  root.classList.add('react-snap-ready');
-}
-
 reportWebVitals();
