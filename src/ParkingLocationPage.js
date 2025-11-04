@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { Helmet } from "react-helmet";
 import useParkingLocation from "./hooks/useParkingLocation";
 import useGeolocation from "./hooks/useGeolocation";
 import AccordionButton from "./components/AccordionButton";
@@ -105,19 +106,17 @@ function ParkingLocationPage() {
         color: "#ecf0f1",
       }}
     >
-      <header className="text-center">
-        <h1
-          style={{
-            fontSize: "28px",
-            fontWeight: "bold",
-            textShadow: "2px 2px 5px rgba(0, 0, 0, 0.3)",
-          }}
-        >
-          {/* Title placeholder */}
-        </h1>
-      </header>
+      {/* SEO Metadata for Google AdSense */}
+      <Helmet>
+        <title>Pin My Park – Find & Save Your Parking Location Easily</title>
+        <meta
+          name="description"
+          content="Pin My Park helps you remember exactly where you parked with GPS precision. Save, manage, and navigate back to your car quickly and stress-free."
+        />
+        <meta name="keywords" content="parking app, GPS, car locator, find my car, parking reminder" />
+      </Helmet>
 
-      <div className="text-center mt-4">
+      <div className="text-center mt-3">
         <button
           className="btn btn-outline-light"
           onClick={() => setShowHowItWorks(true)}
@@ -127,6 +126,7 @@ function ParkingLocationPage() {
         </button>
       </div>
 
+      {/* Core App Buttons */}
       <section className="d-flex flex-column align-items-center mt-4" id="btnSection">
         <button
           className={`btn btn-lg shadow ${
@@ -155,17 +155,14 @@ function ParkingLocationPage() {
         ></div>
       )}
 
+      {/* Additional Info Accordion */}
       <section className="mt-5" aria-label="Add parking details">
         <AccordionButton
           title="Additional Information"
           onSave={() => saveAdditionalInfo(additionalInfo)}
         >
-          <label htmlFor="additionalDetail1" className="form-label visually-hidden">
-            Parking Floor
-          </label>
           <input
             type="text"
-            id="additionalDetail1"
             className="form-control mb-2"
             placeholder="Parking Floor (e.g., Floor 2A)"
             value={additionalInfo.floor}
@@ -173,12 +170,8 @@ function ParkingLocationPage() {
               saveAdditionalInfo({ ...additionalInfo, floor: e.target.value })
             }
           />
-          <label htmlFor="additionalDetail2" className="form-label visually-hidden">
-            Parking Section
-          </label>
           <input
             type="text"
-            id="additionalDetail2"
             className="form-control"
             placeholder="Section (e.g., Near Elevator)"
             value={additionalInfo.section}
@@ -189,6 +182,7 @@ function ParkingLocationPage() {
         </AccordionButton>
       </section>
 
+      {/* Timer */}
       <section className="mt-5" aria-label="Timer showing how long you’ve been parked">
         <Suspense fallback={<div>Loading timer...</div>}>
           <TimerDurationSection
@@ -199,12 +193,14 @@ function ParkingLocationPage() {
         </Suspense>
       </section>
 
+      {/* Map */}
       <section className="mt-5" aria-label="Map showing saved parking location">
         <Suspense fallback={<div>Loading map...</div>}>
           <Map location={displayedLocation} />
         </Suspense>
       </section>
 
+      {/* Parking Info */}
       {isParkingSaved && (
         <>
           <section className="mt-4" aria-label="Navigation to parking spot">
@@ -225,15 +221,14 @@ function ParkingLocationPage() {
         </>
       )}
 
+      {/* Error Modal */}
       <Modal
         show={showErrorModal}
         onHide={() => setShowErrorModal(false)}
-        aria-labelledby="errorModalLabel"
-        aria-modal="true"
         centered
       >
         <Modal.Header closeButton>
-          <Modal.Title id="errorModalLabel">Error</Modal.Title>
+          <Modal.Title>Error</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <p>{error}</p>
@@ -245,28 +240,36 @@ function ParkingLocationPage() {
         </Modal.Footer>
       </Modal>
 
+      {/* Informational Modals */}
       <HowItWorksModal show={showHowItWorks} onClose={() => setShowHowItWorks(false)} />
       <PrivacyPolicyModal show={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
       <TermsOfServiceModal show={showTermsModal} onClose={() => setShowTermsModal(false)} />
 
+      {/* Footer */}
       <footer className="text-center mt-5" style={{ fontSize: "14px" }}>
-        <button
-          className="btn btn-link text-light p-0 me-3"
-          style={{ textDecoration: "underline" }}
-          onClick={() => setShowPrivacyModal(true)}
-          aria-label="View privacy policy"
-        >
-          Privacy Policy
-        </button>
-        <button
-          className="btn btn-link text-light p-0"
-          style={{ textDecoration: "underline" }}
-          onClick={() => setShowTermsModal(true)}
-          aria-label="View terms of service"
-        >
-          Terms of Service
-        </button>
-
+        <p className="text-light mb-2">
+          <strong>About:</strong> Pin My Park is a free, browser-based parking locator app that helps you
+          save your car’s location and find it later with ease. Built for simplicity and privacy.
+        </p>
+        <div>
+          <button
+            className="btn btn-link text-light p-0 me-3"
+            style={{ textDecoration: "underline" }}
+            onClick={() => setShowPrivacyModal(true)}
+          >
+            Privacy Policy
+          </button>
+          <button
+            className="btn btn-link text-light p-0"
+            style={{ textDecoration: "underline" }}
+            onClick={() => setShowTermsModal(true)}
+          >
+            Terms of Service
+          </button>
+        </div>
+        <p className="text-muted mt-2">
+          © {new Date().getFullYear()} Pin My Park. All Rights Reserved.
+        </p>
       </footer>
     </main>
   );

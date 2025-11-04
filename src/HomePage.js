@@ -73,17 +73,33 @@ function HomePage() {
       </div>
 
       <div className="row">
-        <div className="col-12 text-center">
-          <p
-            style={{
-              fontSize: "16px",
-              color: "#bdc3c7",
-              textShadow: "1px 1px 2px rgba(0, 0, 0, 0.3)",
-            }}
-          >
-            Never forget where you parked again. Save your spot with a tap.
-          </p>
-        </div>
+      {/* Content-rich Landing Section */}
+      <header className="text-center mt-3">
+        <h1
+          style={{
+            fontSize: "26px",
+            fontWeight: "bold",
+            textShadow: "2px 2px 5px rgba(0, 0, 0, 0.3)",
+          }}
+        >
+          Pin My Park – Never Lose Your Parking Spot Again
+        </h1>
+        <p
+          style={{
+            maxWidth: "750px",
+            margin: "15px auto",
+            lineHeight: "1.7",
+            color: "#f8f9fa",
+            fontSize: "16px",
+          }}
+        >
+          <strong>Pin My Park</strong> is your smart parking assistant. With one tap, 
+          save your parking spot using accurate GPS data. Add notes like your parking 
+          level or section, and when it’s time to leave, simply open the app and 
+          navigate back to your car. Whether you’re at the mall, an airport, or a stadium, 
+          Pin My Park makes sure you never waste time searching for your car again.
+        </p>
+      </header>
       </div>
 
       <div
