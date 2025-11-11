@@ -48,6 +48,8 @@ const handleGoogleLogin = async () => {
     const isMobile =
       /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
+      alert(isMobile);
+
     if (isMobile) {
       // 🚀 On mobile browsers, use redirect instead of popup
       await signInWithRedirect(auth, googleProvider);
@@ -66,6 +68,7 @@ const handleGoogleLogin = async () => {
       setErrorMsg("Google login failed. Please try again.");
     }
   } finally {
+    alert(error.message);
     setIsLoggingIn(false);
   }
 };
