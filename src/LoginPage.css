@@ -247,3 +247,26 @@
 .danger-button:hover {
   background-color: #c0392b;
 }
+
+.history-list {
+  text-align: left;
+  background-color: #f9f9f9;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.history-item {
+  background-color: white;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.1s ease;
+}
+
+.history-item:hover {
+  transform: translateY(-2px);
+}

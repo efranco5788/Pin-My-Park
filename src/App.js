@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate } from "react-router-dom";
 import Navbar from "./components/NavBar";
 import LoginPage from "./LoginPage";
 import HomePage from "./HomePage";
+import HistoryPage from "./HistoryPage";
 import ProfilePage from "./ProfilePage";
 import ParkingPage from "./ParkingLocationPage";
 import NotSupportedPage from "./NotSupportedPage";
@@ -35,6 +36,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/parking" element={<ParkingPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/history" element={<HistoryPage />} />
           <Route path="/not-supported" element={<NotSupportedPage />} />
         </Routes>
       </div>
