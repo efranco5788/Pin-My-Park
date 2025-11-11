@@ -1,7 +1,6 @@
 import React from "react";
-// import { auth, googleProvider, microsoftProvider } from "./firebaseConfig";
-// import { signInWithPopup } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import "./LoginPage.css"; // Import the new CSS file
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -19,33 +18,46 @@ function LoginPage() {
   */
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">
-          Login to <span className="text-blue-600">Pin My Park</span>
-        </h1>
+    <div className="login-page">
+      <div className="login-card">
+        <h1 className="login-title">Welcome Back</h1>
+        <p className="login-subtitle">
+          Sign in to continue to <span className="brand">Pin My Park</span>
+        </p>
 
-        <div className="space-y-4">
+        <div className="login-buttons">
+          {/* Google Login */}
           <button
             // onClick={() => handleLogin(googleProvider)}
-            className="w-full flex items-center justify-center space-x-3 border border-gray-300 rounded-xl px-4 py-3 bg-white hover:bg-gray-100 transition duration-150 shadow-sm"
+            className="login-button"
           >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-            <span className="text-gray-700 font-medium">Sign in with Google</span>
+            <img
+              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+              alt="Google"
+            />
+            <span>Continue with Google</span>
           </button>
 
+          {/* Microsoft Login */}
           <button
             // onClick={() => handleLogin(microsoftProvider)}
-            className="w-full flex items-center justify-center space-x-3 border border-gray-300 rounded-xl px-4 py-3 bg-white hover:bg-gray-100 transition duration-150 shadow-sm"
+            className="login-button"
           >
-            <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft" className="w-5 h-5" />
-            <span className="text-gray-700 font-medium">Sign in with Microsoft</span>
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg"
+              alt="Microsoft"
+            />
+            <span>Continue with Microsoft</span>
           </button>
         </div>
 
-        <p className="text-xs text-gray-500 text-center mt-6">
-          By continuing, you agree to our Terms & Privacy Policy.
-        </p>
+        <div className="login-footer">
+          <p>
+            By continuing, you agree to our{" "}
+            <a href="/terms">Terms</a> and{" "}
+            <a href="/privacy">Privacy Policy</a>.
+          </p>
+        </div>
       </div>
     </div>
   );
