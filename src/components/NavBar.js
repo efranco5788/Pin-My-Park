@@ -1,8 +1,6 @@
-// src/components/Navbar.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { FaBars } from "react-icons/fa";
-import "../globalColor.css";
 import "../NavBar.css";
 
 const Navbar = () => {
@@ -10,9 +8,10 @@ const Navbar = () => {
   const buttonRef = useRef(null);
   const menuRef = useRef(null);
 
+  // Toggle dropdown menu
   const toggleMenu = () => setIsOpen((prev) => !prev);
 
-  // Close menu when clicking outside
+  // Close when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -31,36 +30,60 @@ const Navbar = () => {
   return (
     <nav className="navbar-container">
       <div className="navbar-inner">
-        <div className="flex-1" />
-        <h1 className="navbar-title">Pin My Park</h1>
+        {/* Left: App title / logo */}
+        <div className="navbar-title">
+          <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
+            🚗 Pin My Park
+          </Link>
+        </div>
+
+        {/* Right: Hamburger menu */}
         <button
           ref={buttonRef}
           onClick={toggleMenu}
-          aria-expanded={isOpen}
-          aria-controls="navbar-menu"
           className="navbar-toggle"
+          aria-label="Toggle navigation menu"
         >
           <FaBars className="navbar-icon" />
         </button>
-      </div>
 
-      <div
-        id="navbar-menu"
-        ref={menuRef}
-        className={`navbar-menu ${isOpen ? "open" : ""}`}
-      >
-        <ul>
-          <li>
-            <Link to="/" onClick={() => setIsOpen(false)}>
-              Home
-            </Link>
-          </li>
-          <li>
-            <Link to="/login" onClick={() => setIsOpen(false)}>
-              Login
-            </Link>
-          </li>
-        </ul>
+        {/* Dropdown menu */}
+        <div
+          ref={menuRef}
+          className={`navbar-menu ${isOpen ? "open" : ""}`}
+          role="menu"
+          aria-expanded={isOpen}
+        >
+          <ul>
+            <li>
+              <Link
+                to="/"
+                onClick={() => setIsOpen(false)}
+                role="menuitem"
+              >
+                Home
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/login"
+                onClick={() => setIsOpen(false)}
+                role="menuitem"
+              >
+                Login
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/about"
+                onClick={() => setIsOpen(false)}
+                role="menuitem"
+              >
+                About
+              </Link>
+            </li>
+          </ul>
+        </div>
       </div>
     </nav>
   );
