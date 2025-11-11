@@ -33,7 +33,7 @@ const Navbar = () => {
         {/* Left: App title / logo */}
         <div className="navbar-title">
           <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-            🚗 Pin My Park
+            Pin My Park
           </Link>
         </div>
 

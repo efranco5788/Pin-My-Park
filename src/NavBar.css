@@ -5,7 +5,8 @@
   left: 0;
   width: 100%;
   z-index: 50;
-  background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+  background: #1e2a35;
+  color: #ecf0f1;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(8px);
   height: 60px;
@@ -62,13 +63,13 @@
   position: absolute;
   top: 58px;
   right: 1rem;
-  background: rgba(17, 25, 40, 0.9);
+  background: #1e2a35;
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
   overflow: hidden;
-  opacity: 0;
+  opacity: 1;
   visibility: hidden;
   transform: translateY(-10px);
   transition: all 0.25s ease;
