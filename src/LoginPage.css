@@ -121,3 +121,67 @@
     height: 16px;
   }
 }
+
+/* Email form styling */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.login-form input {
+  padding: 0.75rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 0.6rem;
+  font-size: 0.95rem;
+}
+
+.login-form input:focus {
+  border-color: #1abc9c;
+  outline: none;
+  box-shadow: 0 0 5px rgba(26, 188, 156, 0.3);
+}
+
+/* Main button */
+.primary-button {
+  background: #1abc9c;
+  color: white;
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.primary-button:hover {
+  background: #16a085;
+  transform: translateY(-1px);
+}
+
+.divider {
+  margin: 1rem 0;
+  text-align: center;
+  color: #999;
+  font-size: 0.85rem;
+}
+
+/* Toggle login/signup */
+.toggle-text {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #1abc9c;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}

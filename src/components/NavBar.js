@@ -1,17 +1,41 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FaBars } from "react-icons/fa";
+import { auth } from "../firebaseConfig";
+import { signOut, onAuthStateChanged } from "firebase/auth";
+import "../globalColor.css";
 import "../NavBar.css";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState({});
+  const [user, setUser] = useState(null);
   const buttonRef = useRef(null);
   const menuRef = useRef(null);
+  const navigate = useNavigate();
 
-  // Toggle dropdown menu
-  const toggleMenu = () => setIsOpen((prev) => !prev);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
-  // Close when clicking outside
+  const toggleMenu = () => {
+    setIsOpen(!isOpen);
+  };
+
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "absolute",
+        top: `${rect.bottom + 8}px`,
+        right: "3%",
+      });
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -23,31 +47,47 @@ const Navbar = () => {
         setIsOpen(false);
       }
     };
-    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [isOpen]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error.message);
+    }
+  };
 
   return (
     <nav className="navbar-container">
       <div className="navbar-inner">
-        {/* Left: App title / logo */}
+         {/* Left: App title / logo */}
         <div className="navbar-title">
           <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-            Pin My Park
+          Pin My Park
           </Link>
         </div>
 
         {/* Right: Hamburger menu */}
-        <button
-          ref={buttonRef}
-          onClick={toggleMenu}
-          className="navbar-toggle"
-          aria-label="Toggle navigation menu"
-        >
-          <FaBars className="navbar-icon" />
-        </button>
+          <button
+            ref={buttonRef}
+            onClick={toggleMenu}
+            className="text-white p-2 flex items-center"
+            style={{ background: "transparent", border: "none", outline: "none" }}
+          >
+            <FaBars className="w-6 h-6 text-white" />
+          </button>
+      </div>
 
-        {/* Dropdown menu */}
+      {isOpen && (
         <div
           ref={menuRef}
           className={`navbar-menu ${isOpen ? "open" : ""}`}
@@ -59,32 +99,37 @@ const Navbar = () => {
               <Link
                 to="/"
                 onClick={() => setIsOpen(false)}
-                role="menuitem"
+                className="text-white text-base block px-4 py-2 hover:bg-gray-700 rounded"
               >
                 Home
               </Link>
             </li>
-            <li>
-              <Link
-                to="/login"
-                onClick={() => setIsOpen(false)}
-                role="menuitem"
-              >
-                Login
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/about"
-                onClick={() => setIsOpen(false)}
-                role="menuitem"
-              >
-                About
-              </Link>
-            </li>
+            {user ? (
+              <li>
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setIsOpen(false);
+                  }}
+                  className="text-white text-base block px-4 py-2 hover:bg-gray-700 rounded"
+                >
+                  Logout
+                </button>
+              </li>
+            ) : (
+              <li>
+                <Link
+                  to="/login"
+                  onClick={() => setIsOpen(false)}
+                  className="text-white text-base block px-4 py-2 hover:bg-gray-700 rounded"
+                >
+                  Login
+                </Link>
+              </li>
+            )}
           </ul>
         </div>
-      </div>
+      )}
     </nav>
   );
 };

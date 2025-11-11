@@ -1,63 +1,94 @@
-import React from "react";
+import React, { useState } from "react";
+import { auth, googleProvider } from "./firebaseConfig";
+import {
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import "./LoginPage.css"; // Import the new CSS file
+import "./LoginPage.css";
 
 function LoginPage() {
+  const [isSignup, setIsSignup] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
-  /*
-  const handleLogin = async (provider) => {
+  const handleGoogleLogin = async () => {
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, googleProvider);
       navigate("/parking");
     } catch (error) {
-      console.error("Login error:", error.message);
-      alert("Login failed. Please try again.");
+      alert(error.message);
     }
   };
-  */
+
+  const handleEmailAuth = async (e) => {
+    e.preventDefault();
+    try {
+      if (isSignup) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+      navigate("/parking");
+    } catch (error) {
+      alert(error.message);
+    }
+  };
 
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1 className="login-title">Welcome Back</h1>
+        <h1 className="login-title">
+          {isSignup ? "Create Account" : "Welcome Back"}
+        </h1>
         <p className="login-subtitle">
-          Sign in to continue to <span className="brand">Pin My Park</span>
+          {isSignup
+            ? "Sign up to start using Pin My Park"
+            : "Sign in to continue to Pin My Park"}
         </p>
 
-        <div className="login-buttons">
-          {/* Google Login */}
-          <button
-            // onClick={() => handleLogin(googleProvider)}
-            className="login-button"
-          >
-            <img
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-              alt="Google"
-            />
-            <span>Continue with Google</span>
+        <form className="login-form" onSubmit={handleEmailAuth}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <button type="submit" className="primary-button">
+            {isSignup ? "Sign Up" : "Login"}
           </button>
+        </form>
 
-          {/* Microsoft Login */}
+        <div className="divider">or</div>
+
+        <button className="login-button" onClick={handleGoogleLogin}>
+          <img
+            src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+            alt="Google"
+          />
+          <span>Continue with Google</span>
+        </button>
+
+        <p className="toggle-text">
+          {isSignup ? "Already have an account?" : "New here?"}{" "}
           <button
-            // onClick={() => handleLogin(microsoftProvider)}
-            className="login-button"
+            type="button"
+            className="link-button"
+            onClick={() => setIsSignup(!isSignup)}
           >
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg"
-              alt="Microsoft"
-            />
-            <span>Continue with Microsoft</span>
+            {isSignup ? "Login" : "Sign up"}
           </button>
-        </div>
-
-        <div className="login-footer">
-          <p>
-            By continuing, you agree to our{" "}
-            <a href="/terms">Terms</a> and{" "}
-            <a href="/privacy">Privacy Policy</a>.
-          </p>
-        </div>
+        </p>
       </div>
     </div>
   );
