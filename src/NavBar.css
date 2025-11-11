@@ -2,12 +2,13 @@
 .navbar-container {
   position: fixed;
   top: 0;
+  left: 0;
   width: 100%;
   z-index: 50;
   background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(8px);
-  height: 56px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;

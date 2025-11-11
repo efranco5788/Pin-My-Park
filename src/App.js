@@ -26,7 +26,8 @@ function App() {
   return (
     <>
     <Navbar />
-      <CheckDevice />
+    <CheckDevice />
+    <div style={{ paddingTop: "60px" }}>
       <div className="pt-12"> {/* Push content below fixed navbar */}
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -35,6 +36,7 @@ function App() {
           <Route path="/not-supported" element={<NotSupportedPage />} />
         </Routes>
       </div>
+    </div>
     </>
   );
 }
