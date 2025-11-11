@@ -14,6 +14,7 @@ const Navbar = () => {
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
+  // Detect user login state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -21,10 +22,12 @@ const Navbar = () => {
     return () => unsubscribe();
   }, []);
 
+  // Toggle menu visibility
   const toggleMenu = () => {
     setIsOpen(!isOpen);
   };
 
+  // Adjust dropdown position
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
@@ -36,6 +39,7 @@ const Navbar = () => {
     }
   }, [isOpen]);
 
+  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -51,12 +55,12 @@ const Navbar = () => {
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen]);
 
+  // Handle logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -69,24 +73,25 @@ const Navbar = () => {
   return (
     <nav className="navbar-container">
       <div className="navbar-inner">
-         {/* Left: App title / logo */}
+        {/* Left: App title / logo */}
         <div className="navbar-title">
           <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-          Pin My Park
+            Pin My Park
           </Link>
         </div>
 
         {/* Right: Hamburger menu */}
-          <button
-            ref={buttonRef}
-            onClick={toggleMenu}
-            className="text-white p-2 flex items-center"
-            style={{ background: "transparent", border: "none", outline: "none" }}
-          >
-            <FaBars className="w-6 h-6 text-white" />
-          </button>
+        <button
+          ref={buttonRef}
+          onClick={toggleMenu}
+          className="text-white p-2 flex items-center"
+          style={{ background: "transparent", border: "none", outline: "none" }}
+        >
+          <FaBars className="w-6 h-6 text-white" />
+        </button>
       </div>
 
+      {/* Dropdown Menu */}
       {isOpen && (
         <div
           ref={menuRef}
@@ -104,6 +109,19 @@ const Navbar = () => {
                 Home
               </Link>
             </li>
+
+            {user && (
+              <li>
+                <Link
+                  to="/profile"
+                  onClick={() => setIsOpen(false)}
+                  className="text-white text-base block px-4 py-2 hover:bg-gray-700 rounded"
+                >
+                  Profile
+                </Link>
+              </li>
+            )}
+
             {user ? (
               <li>
                 <button
@@ -111,7 +129,7 @@ const Navbar = () => {
                     handleLogout();
                     setIsOpen(false);
                   }}
-                  className="text-white text-base block px-4 py-2 hover:bg-gray-700 rounded"
+                  className="text-white text-base block px-4 py-2 hover:bg-gray-700 rounded w-full text-left"
                 >
                   Logout
                 </button>

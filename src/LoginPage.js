@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { auth, googleProvider } from "./firebaseConfig";
 import {
   signInWithPopup,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  onAuthStateChanged,
 } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import "./LoginPage.css";
@@ -12,19 +13,32 @@ function LoginPage() {
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const navigate = useNavigate();
 
+  // Redirect if already logged in
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) navigate("/parking");
+    });
+    return () => unsubscribe();
+  }, [navigate]);
+
+  // Handle Google login
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
       navigate("/parking");
     } catch (error) {
-      alert(error.message);
+      console.error("Google login failed:", error.message);
+      setErrorMsg("Google login failed. Please try again.");
     }
   };
 
+  // Handle email/password login or signup
   const handleEmailAuth = async (e) => {
     e.preventDefault();
+    setErrorMsg("");
     try {
       if (isSignup) {
         await createUserWithEmailAndPassword(auth, email, password);
@@ -33,7 +47,16 @@ function LoginPage() {
       }
       navigate("/parking");
     } catch (error) {
-      alert(error.message);
+      console.error("Auth error:", error.message);
+      if (error.code === "auth/email-already-in-use") {
+        setErrorMsg("This email is already in use. Try logging in instead.");
+      } else if (error.code === "auth/invalid-credential") {
+        setErrorMsg("Invalid email or password.");
+      } else if (error.code === "auth/weak-password") {
+        setErrorMsg("Password should be at least 6 characters long.");
+      } else {
+        setErrorMsg("Something went wrong. Please try again.");
+      }
     }
   };
 
@@ -49,10 +72,12 @@ function LoginPage() {
             : "Sign in to continue to Pin My Park"}
         </p>
 
+        {errorMsg && <p className="error-text">{errorMsg}</p>}
+
         <form className="login-form" onSubmit={handleEmailAuth}>
           <input
             type="email"
-            placeholder="Email"
+            placeholder="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -84,7 +109,10 @@ function LoginPage() {
           <button
             type="button"
             className="link-button"
-            onClick={() => setIsSignup(!isSignup)}
+            onClick={() => {
+              setIsSignup(!isSignup);
+              setErrorMsg("");
+            }}
           >
             {isSignup ? "Login" : "Sign up"}
           </button>
