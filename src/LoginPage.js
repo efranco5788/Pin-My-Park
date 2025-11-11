@@ -27,35 +27,7 @@ function LoginPage() {
     return () => unsubscribe();
   }, [navigate]);
 
-  // ✅ Handle Google login
-  const handleGoogleLogin = async () => {
-    if (isLoggingIn) return; // Prevent multiple clicks
-    setIsLoggingIn(true);
-    setErrorMsg("");
-
-    try {
-      // Some mobile browsers block popups, so use redirect there
-      if (/Mobi|Android/i.test(navigator.userAgent)) {
-        await signInWithRedirect(auth, googleProvider);
-      } else {
-        await signInWithPopup(auth, googleProvider);
-      }
-      navigate("/parking");
-    } catch (error) {
-      console.error("Google login failed:", error.message);
-      if (error.code === "auth/popup-closed-by-user") {
-        setErrorMsg("Popup was closed before completing sign-in.");
-      } else if (error.code === "auth/cancelled-popup-request") {
-        setErrorMsg("Another login attempt was canceled. Please try again.");
-      } else {
-        setErrorMsg("Google login failed. Please try again.");
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  // ✅ Handle redirect results (for mobile Google login)
+    // ✅ Handle redirect results (for mobile Google login)
   useEffect(() => {
     getRedirectResult(auth)
       .then((result) => {
@@ -65,6 +37,38 @@ function LoginPage() {
         console.error("Redirect login error:", error.message);
       });
   }, [navigate]);
+
+  // ✅ Handle Google login
+const handleGoogleLogin = async () => {
+  if (isLoggingIn) return;
+  setIsLoggingIn(true);
+  setErrorMsg("");
+
+  try {
+    const isMobile =
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // 🚀 On mobile browsers, use redirect instead of popup
+      await signInWithRedirect(auth, googleProvider);
+    } else {
+      // ✅ Works fine on desktop browsers
+      await signInWithPopup(auth, googleProvider);
+      navigate("/parking");
+    }
+  } catch (error) {
+    console.error("Google login failed:", error.message);
+    if (error.code === "auth/popup-blocked") {
+      setErrorMsg("Popup was blocked. Try using another browser.");
+    } else if (error.code === "auth/popup-closed-by-user") {
+      setErrorMsg("You closed the sign-in window. Please try again.");
+    } else {
+      setErrorMsg("Google login failed. Please try again.");
+    }
+  } finally {
+    setIsLoggingIn(false);
+  }
+};
 
   // ✅ Handle email/password login or signup
   const handleEmailAuth = async (e) => {
