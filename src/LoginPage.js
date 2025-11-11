@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { auth, googleProvider } from "./firebaseConfig";
 import {
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   onAuthStateChanged,
@@ -14,9 +16,10 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
 
-  // Redirect if already logged in
+  // 🚀 Redirect logged-in users
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) navigate("/parking");
@@ -24,21 +27,50 @@ function LoginPage() {
     return () => unsubscribe();
   }, [navigate]);
 
-  // Handle Google login
+  // ✅ Handle Google login
   const handleGoogleLogin = async () => {
+    if (isLoggingIn) return; // Prevent multiple clicks
+    setIsLoggingIn(true);
+    setErrorMsg("");
+
     try {
-      await signInWithPopup(auth, googleProvider);
+      // Some mobile browsers block popups, so use redirect there
+      if (/Mobi|Android/i.test(navigator.userAgent)) {
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
       navigate("/parking");
     } catch (error) {
       console.error("Google login failed:", error.message);
-      setErrorMsg("Google login failed. Please try again.");
+      if (error.code === "auth/popup-closed-by-user") {
+        setErrorMsg("Popup was closed before completing sign-in.");
+      } else if (error.code === "auth/cancelled-popup-request") {
+        setErrorMsg("Another login attempt was canceled. Please try again.");
+      } else {
+        setErrorMsg("Google login failed. Please try again.");
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
-  // Handle email/password login or signup
+  // ✅ Handle redirect results (for mobile Google login)
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) navigate("/parking");
+      })
+      .catch((error) => {
+        console.error("Redirect login error:", error.message);
+      });
+  }, [navigate]);
+
+  // ✅ Handle email/password login or signup
   const handleEmailAuth = async (e) => {
     e.preventDefault();
     setErrorMsg("");
+
     try {
       if (isSignup) {
         await createUserWithEmailAndPassword(auth, email, password);
@@ -96,12 +128,16 @@ function LoginPage() {
 
         <div className="divider">or</div>
 
-        <button className="login-button" onClick={handleGoogleLogin}>
+        <button
+          className="login-button"
+          onClick={handleGoogleLogin}
+          disabled={isLoggingIn}
+        >
           <img
             src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
             alt="Google"
           />
-          <span>Continue with Google</span>
+          <span>{isLoggingIn ? "Signing in..." : "Continue with Google"}</span>
         </button>
 
         <p className="toggle-text">
