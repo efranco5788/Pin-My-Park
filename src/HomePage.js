@@ -75,15 +75,6 @@ function HomePage() {
       <div className="row">
       {/* Content-rich Landing Section */}
       <header className="text-center mt-3">
-        <h1
-          style={{
-            fontSize: "26px",
-            fontWeight: "bold",
-            textShadow: "2px 2px 5px rgba(0, 0, 0, 0.3)",
-          }}
-        >
-          Pin My Park – Never Lose Your Parking Spot Again
-        </h1>
         <p
           style={{
             maxWidth: "750px",
