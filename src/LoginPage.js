@@ -67,8 +67,8 @@ const handleGoogleLogin = async () => {
     } else {
       setErrorMsg("Google login failed. Please try again.");
     }
+    alert(error.code);
   } finally {
-    alert(error.message);
     setIsLoggingIn(false);
   }
 };
