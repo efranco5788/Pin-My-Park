@@ -118,15 +118,6 @@ function ParkingLocationPage() {
 
       {/* Content-rich Landing Section */}
       <header className="text-center mt-3">
-        <h1
-          style={{
-            fontSize: "32px",
-            fontWeight: "bold",
-            textShadow: "2px 2px 5px rgba(0, 0, 0, 0.3)",
-          }}
-        >
-          Pin My Park – Never Lose Your Parking Spot Again
-        </h1>
         <p
           style={{
             maxWidth: "750px",
@@ -136,7 +127,7 @@ function ParkingLocationPage() {
             fontSize: "16px",
           }}
         >
-          <strong>Pin My Park</strong> is your smart parking assistant. With one tap, 
+          Pin My Park is your smart parking assistant. With one tap, 
           save your parking spot using accurate GPS data. Add notes like your parking 
           level or section, and when it’s time to leave, simply open the app and 
           navigate back to your car. Whether you’re at the mall, an airport, or a stadium, 
