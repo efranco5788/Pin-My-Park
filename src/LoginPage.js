@@ -19,7 +19,21 @@ function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
 
-  // 🚀 Redirect logged-in users
+  // Detect if user came back to the page (e.g., used Back button)
+useEffect(() => {
+  const handlePageShow = () => {
+    setIsLoggingIn(false); // Reset button when coming back
+  };
+
+  window.addEventListener("pageshow", handlePageShow);
+
+  return () => {
+    window.removeEventListener("pageshow", handlePageShow);
+  };
+}, []);
+
+
+  // Redirect logged-in users
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) navigate("/parking");
@@ -27,7 +41,8 @@ function LoginPage() {
     return () => unsubscribe();
   }, [navigate]);
 
-    // ✅ Handle redirect results (for mobile Google login)
+
+    // Handle redirect results (for mobile Google login)
     useEffect(() => {
   getRedirectResult(auth)
     .then((result) => {
@@ -44,9 +59,11 @@ function LoginPage() {
 }, [navigate]);
 
 
-  useEffect(() => {
+useEffect(() => {
   setIsLoggingIn(false);
 }, []);
+
+
 
   // ✅ Handle Google login
 const handleGoogleLogin = async () => {
