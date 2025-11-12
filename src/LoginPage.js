@@ -28,30 +28,39 @@ function LoginPage() {
   }, [navigate]);
 
     // ✅ Handle redirect results (for mobile Google login)
+    useEffect(() => {
+  getRedirectResult(auth)
+    .then((result) => {
+      if (result?.user) {
+        navigate("/parking");
+      } else {
+        setIsLoggingIn(false);
+      }
+    })
+    .catch((error) => {
+      console.error("Redirect login error:", error.message);
+      setIsLoggingIn(false);
+    });
+}, [navigate]);
+
+
   useEffect(() => {
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) navigate("/parking");
-      })
-      .catch((error) => {
-        console.error("Redirect login error:", error.message);
-      });
-  }, [navigate]);
+  setIsLoggingIn(false);
+}, []);
 
   // ✅ Handle Google login
 const handleGoogleLogin = async () => {
   if (isLoggingIn) return;
   setIsLoggingIn(true);
+  
   setErrorMsg("");
 
   try {
     const isMobile =
       /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-      alert(isMobile);
-
     if (isMobile) {
-      // 🚀 On mobile browsers, use redirect instead of popup
+      // On mobile browsers, use redirect instead of popup
       await signInWithRedirect(auth, googleProvider);
     } else {
       // ✅ Works fine on desktop browsers
@@ -67,7 +76,6 @@ const handleGoogleLogin = async () => {
     } else {
       setErrorMsg("Google login failed. Please try again.");
     }
-    alert(error.code);
   } finally {
     setIsLoggingIn(false);
   }
