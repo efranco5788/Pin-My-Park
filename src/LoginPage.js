@@ -19,19 +19,6 @@ function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
 
-  // Detect if user came back to the page (e.g., used Back button)
-useEffect(() => {
-  const handlePageShow = () => {
-    setIsLoggingIn(false); // Reset button when coming back
-  };
-
-  window.addEventListener("pageshow", handlePageShow);
-
-  return () => {
-    window.removeEventListener("pageshow", handlePageShow);
-  };
-}, []);
-
 
   // Redirect logged-in users
   useEffect(() => {
@@ -44,11 +31,11 @@ useEffect(() => {
 
     // Handle redirect results (for mobile Google login)
     useEffect(() => {
-  getRedirectResult(auth)
-    .then((result) => {
-      if (result?.user) {
-        navigate("/parking");
-      } else {
+      getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          navigate("/parking");
+        } else {
         setIsLoggingIn(false);
       }
     })
@@ -58,9 +45,17 @@ useEffect(() => {
     });
 }, [navigate]);
 
-
+  // Detect if user came back to the page (e.g., used Back button)
 useEffect(() => {
-  setIsLoggingIn(false);
+  const handlePageShow = () => {
+    setIsLoggingIn(false); // Reset button when coming back
+  };
+
+  window.addEventListener("pageshow", handlePageShow);
+
+  return () => {
+    window.removeEventListener("pageshow", handlePageShow);
+  };
 }, []);
 
 
