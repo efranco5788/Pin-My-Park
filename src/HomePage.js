@@ -1,38 +1,82 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { auth } from "./firebaseConfig";
+import { onAuthStateChanged } from "firebase/auth";
+
 import useGeolocation from "./hooks/useGeolocation";
 import useParkingLocation from "./hooks/useParkingLocation";
 import usePersistentTimer from "./hooks/usePersistentTimer";
+
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import TermsOfServiceModal from "./components/TermsOfServiceModal";
 
 import "bootstrap/dist/css/bootstrap.min.css";
+import "./WelcomeOverlay.css";
 
 function HomePage() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const { getLocation } = useGeolocation();
   const { saveParkingLocation } = useParkingLocation();
   const { startTimer } = usePersistentTimer();
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
+
+  // ------------------------------------------
+  // SHOW OVERLAY ONLY IF:
+  // user not logged in AND session skip not set
+  // ------------------------------------------
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const skippedSession = sessionStorage.getItem("skip_welcome") === "true";
+      const neverShow = localStorage.getItem("welcome_never_show") === "true";
+
+      // Logic:
+      // 1. If user logged in → never show overlay
+      // 2. If user chose never show → never show again
+      // 3. If user skipped this session → don't show again for this session
+      if (!user && !skippedSession && !neverShow) {
+        setShowWelcomeOverlay(true);
+      } else {
+        setShowWelcomeOverlay(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+
+  // ------------------------------------------
+  // HANDLE "Continue Without Account"
+  // ------------------------------------------
+  const handleContinueWithoutAccount = () => {
+    sessionStorage.setItem("skip_welcome", "true");
+    setShowWelcomeOverlay(false);
+  };
+
+  // ------------------------------------------
+  // PARK BUTTON LOGIC
+  // ------------------------------------------
   const handleButtonClick = async () => {
     setIsLoading(true);
     setProgress(0);
 
     try {
-      let progressValue = 0;
+      let progressVal = 0;
       const interval = setInterval(() => {
-        progressValue += 5;
-        setProgress(progressValue);
-        if (progressValue >= 100) clearInterval(interval);
+        progressVal += 5;
+        setProgress(progressVal);
+        if (progressVal >= 100) clearInterval(interval);
       }, 100);
 
       const locationData = await getLocation();
-      if (!locationData || !locationData.latitude || !locationData.longitude) {
-        throw new Error("Failed to get a valid location. Please try again.");
+      if (!locationData?.latitude || !locationData?.longitude) {
+        throw new Error("Failed to get location");
       }
 
       saveParkingLocation(
@@ -45,13 +89,8 @@ function HomePage() {
       clearInterval(interval);
       setProgress(100);
 
-      // Give a slight delay for smoother UX, then redirect
-      setTimeout(() => {
-        navigate("/parking");
-      }, 500);
-
+      setTimeout(() => navigate("/parking"), 500);
     } catch (error) {
-      console.error("Error fetching location:", error.message);
       alert("Failed to get location. Please try again.");
     } finally {
       setIsLoading(false);
@@ -60,7 +99,7 @@ function HomePage() {
 
   return (
     <div
-    className="container-fluid d-flex flex-column bg-custom-gradient"
+      className="container-fluid d-flex flex-column bg-custom-gradient"
       style={{
         minHeight: "calc(100vh - 50px)",
         padding: "10px",
@@ -68,12 +107,7 @@ function HomePage() {
         fontFamily: "'Poppins', sans-serif",
       }}
     >
-      <div className="row">
-        <div className="col-12 text-center"></div>
-      </div>
-
-      <div className="row">
-      {/* Content-rich Landing Section */}
+      {/* ----------------- TOP TEXT SECTION ------------------- */}
       <header className="text-center mt-3">
         <p
           style={{
@@ -84,15 +118,14 @@ function HomePage() {
             fontSize: "16px",
           }}
         >
-          <strong>Pin My Park</strong> is your smart parking assistant. With one tap, 
-          save your parking spot using accurate GPS data. Add notes like your parking 
-          level or section, and when it’s time to leave, simply open the app and 
-          navigate back to your car. Whether you’re at the mall, an airport, or a stadium, 
-          Pin My Park makes sure you never waste time searching for your car again.
+          <strong>Pin My Park</strong> is your smart parking assistant. With one tap,
+          save your parking spot using accurate GPS data. Add notes like your parking
+          level or section, and when it’s time to leave, simply open the app and
+          navigate back to your car.
         </p>
       </header>
-      </div>
 
+      {/* ----------------- CENTER BUTTON ------------------- */}
       <div
         className="row flex-grow-1 d-flex justify-content-center align-items-center"
         style={{ position: "relative" }}
@@ -107,6 +140,7 @@ function HomePage() {
             boxShadow: "0 8px 15px rgba(0, 0, 0, 0.2)",
           }}
         >
+          {/* Circular Progress Indicator */}
           <svg
             style={{
               position: "absolute",
@@ -118,14 +152,8 @@ function HomePage() {
             height="100%"
             viewBox="0 0 100 100"
           >
-            <circle
-              cx="50"
-              cy="50"
-              r="45"
-              stroke="#34495e"
-              strokeWidth="8"
-              fill="none"
-            />
+            <circle cx="50" cy="50" r="45" stroke="#34495e" strokeWidth="8" fill="none" />
+
             <circle
               cx="50"
               cy="50"
@@ -137,6 +165,7 @@ function HomePage() {
               strokeLinecap="round"
               fill="none"
             />
+
             <defs>
               <linearGradient id="gradient" x1="0" x2="1" y1="0" y2="1">
                 <stop offset="0%" stopColor="#1abc9c" />
@@ -145,6 +174,7 @@ function HomePage() {
             </defs>
           </svg>
 
+          {/* Button */}
           <button
             style={{
               position: "absolute",
@@ -161,8 +191,8 @@ function HomePage() {
               fontWeight: "bold",
               cursor: "pointer",
               boxShadow: "0 4px 10px rgba(0, 0, 0, 0.3)",
-              transition: "all 0.3s ease",
               opacity: isLoading ? 0.8 : 1,
+              transition: "all 0.3s ease",
             }}
             onClick={handleButtonClick}
             disabled={isLoading}
@@ -172,32 +202,98 @@ function HomePage() {
         </div>
       </div>
 
+      {/* ----------------- WELCOME OVERLAY ------------------- */}
+      {showWelcomeOverlay && (
+        <div className="welcome-overlay">
+          <div className="welcome-box">
+            <h2>Welcome to Pin My Park</h2>
+            <p>
+              You can save your parking spots without an account.
+              But logging in lets you keep a full parking history.
+            </p>
+
+            {/* Never show again checkbox */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "20px",
+                marginTop: "-10px",
+                gap: "8px"
+              }}
+            >
+              <input
+                type="checkbox"
+                id="neverShow"
+                style={{ transform: "scale(1.2)" }}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    localStorage.setItem("welcome_never_show", "true");
+                  } else {
+                    localStorage.removeItem("welcome_never_show");
+                  }
+                }}
+              />
+              <label htmlFor="neverShow" style={{ fontSize: "14px", color: "#444" }}>
+                Don’t show this again
+              </label>
+            </div>
+
+            <button
+              className="overlay-btn primary"
+              onClick={() => navigate("/login")}
+            >
+              Login / Sign Up
+            </button>
+
+            <button
+              className="overlay-btn secondary"
+              onClick={() => {
+                const neverShow = localStorage.getItem("welcome_never_show") === "true";
+
+                if (!neverShow) {
+                  // Normal behavior: hide only for this session
+                  sessionStorage.setItem("skip_welcome", "true");
+                }
+
+                setShowWelcomeOverlay(false);
+              }}
+            >
+              Continue Without Account
+            </button>
+          </div>
+        </div>
+      )}
+
+
+      {/* ----------------- FOOTER ------------------- */}
       <footer className="text-center mt-5" style={{ fontSize: "14px" }}>
-  <button
-    className="btn btn-link text-light p-0 me-3"
-    style={{ textDecoration: "underline" }}
-    onClick={() => setShowPrivacyModal(true)}
-  >
-    Privacy Policy
-  </button>
-  <button
-    className="btn btn-link text-light p-0"
-    style={{ textDecoration: "underline" }}
-    onClick={() => setShowTermsModal(true)}
-  >
-    Terms of Service
-  </button>
-</footer>
+        <button
+          className="btn btn-link text-light p-0 me-3"
+          style={{ textDecoration: "underline" }}
+          onClick={() => setShowPrivacyModal(true)}
+        >
+          Privacy Policy
+        </button>
 
-<PrivacyPolicyModal
-  show={showPrivacyModal}
-  onClose={() => setShowPrivacyModal(false)}
-/>
-<TermsOfServiceModal
-  show={showTermsModal}
-  onClose={() => setShowTermsModal(false)}
-/>
+        <button
+          className="btn btn-link text-light p-0"
+          style={{ textDecoration: "underline" }}
+          onClick={() => setShowTermsModal(true)}
+        >
+          Terms of Service
+        </button>
+      </footer>
 
+      <PrivacyPolicyModal
+        show={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+      />
+      <TermsOfServiceModal
+        show={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+      />
     </div>
   );
 }
