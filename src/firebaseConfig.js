@@ -19,7 +19,12 @@ const app = initializeApp(firebaseConfig);
 
 // Auth + Providers
 export const auth = getAuth(app);
+
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: "select_account",
+});
+
 
 // Firestore (for saving user data, parking history, etc.)
 export const db = getFirestore(app);

@@ -22,21 +22,35 @@ function LoginPage() {
   // -------------------------------------------------
   // 🔵 FIRST: Handle Google redirect login results
   // -------------------------------------------------
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          // Redirect SUCCESS
-          navigate("/parking");
-        } else {
-          setIsLoggingIn(false);
-        }
-      })
-      .catch((error) => {
-        console.error("Redirect login error:", error.message);
+useEffect(() => {
+  let isMounted = true;
+
+  (async () => {
+    try {
+      const result = await getRedirectResult(auth);
+
+      if (!isMounted) return;
+
+      console.log("Redirect login result:", result);
+
+      if (result?.user) {
+        // Redirect success
+        navigate("/parking");
+      } else {
+        // No redirect happened — user pressed Back or canceled
         setIsLoggingIn(false);
-      });
-  }, [navigate]);
+      }
+    } catch (error) {
+      console.error("Redirect login error:", error.message);
+      setIsLoggingIn(false);
+    }
+  })();
+
+  return () => {
+    isMounted = false;
+  };
+}, [navigate]);
+
 
   // -------------------------------------------------
   // 🔵 SECOND: Auto-redirect if user is already logged in
