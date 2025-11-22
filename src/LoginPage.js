@@ -19,81 +19,85 @@ function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
 
+  // -------------------------------------------------
+  // 🔵 FIRST: Handle Google redirect login results
+  // -------------------------------------------------
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          // Redirect SUCCESS
+          navigate("/parking");
+        } else {
+          setIsLoggingIn(false);
+        }
+      })
+      .catch((error) => {
+        console.error("Redirect login error:", error.message);
+        setIsLoggingIn(false);
+      });
+  }, [navigate]);
 
-  // Redirect logged-in users
+  // -------------------------------------------------
+  // 🔵 SECOND: Auto-redirect if user is already logged in
+  // -------------------------------------------------
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) navigate("/parking");
+      if (user) {
+        // small delay prevents iOS race condition
+        setTimeout(() => navigate("/parking"), 50);
+      }
     });
     return () => unsubscribe();
   }, [navigate]);
 
+  // -------------------------------------------------
+  // 🔵 Reset "Signing in..." when user presses Back
+  // -------------------------------------------------
+  useEffect(() => {
+    const handlePageShow = () => setIsLoggingIn(false);
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
 
-    // Handle redirect results (for mobile Google login)
-    useEffect(() => {
-      getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          navigate("/parking");
-        } else {
-        setIsLoggingIn(false);
+  // -------------------------------------------------
+  // 🔵 Google Login
+  // -------------------------------------------------
+  const handleGoogleLogin = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    setErrorMsg("");
+
+    try {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        // redirect is required for iOS/Chrome mobile
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        // popup works on desktop browsers
+        await signInWithPopup(auth, googleProvider);
+        navigate("/parking");
       }
-    })
-    .catch((error) => {
-      console.error("Redirect login error:", error.message);
+    } catch (error) {
+      console.error("Google login failed:", error);
+
+      if (error.code === "auth/popup-blocked") {
+        setErrorMsg("Popup was blocked. Try using a different browser.");
+      } else if (error.code === "auth/popup-closed-by-user") {
+        setErrorMsg("You closed the sign-in window.");
+      } else if (error.code === "auth/cancelled-popup-request") {
+        setErrorMsg("Another sign-in attempt is already running.");
+      } else {
+        setErrorMsg("Google login failed. Please try again.");
+      }
       setIsLoggingIn(false);
-    });
-}, [navigate]);
-
-  // Detect if user came back to the page (e.g., used Back button)
-useEffect(() => {
-  const handlePageShow = () => {
-    setIsLoggingIn(false); // Reset button when coming back
+    }
   };
 
-  window.addEventListener("pageshow", handlePageShow);
-
-  return () => {
-    window.removeEventListener("pageshow", handlePageShow);
-  };
-}, []);
-
-
-
-  // ✅ Handle Google login
-const handleGoogleLogin = async () => {
-  if (isLoggingIn) return;
-  setIsLoggingIn(true);
-  
-  setErrorMsg("");
-
-  try {
-    const isMobile =
-      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    if (isMobile) {
-      // On mobile browsers, use redirect instead of popup
-      await signInWithRedirect(auth, googleProvider);
-    } else {
-      // ✅ Works fine on desktop browsers
-      await signInWithPopup(auth, googleProvider);
-      navigate("/parking");
-    }
-  } catch (error) {
-    console.error("Google login failed:", error.message);
-    if (error.code === "auth/popup-blocked") {
-      setErrorMsg("Popup was blocked. Try using another browser.");
-    } else if (error.code === "auth/popup-closed-by-user") {
-      setErrorMsg("You closed the sign-in window. Please try again.");
-    } else {
-      setErrorMsg("Google login failed. Please try again.");
-    }
-  } finally {
-    setIsLoggingIn(false);
-  }
-};
-
-  // ✅ Handle email/password login or signup
+  // -------------------------------------------------
+  // 🔵 Email Signup/Login
+  // -------------------------------------------------
   const handleEmailAuth = async (e) => {
     e.preventDefault();
     setErrorMsg("");
@@ -107,12 +111,13 @@ const handleGoogleLogin = async () => {
       navigate("/parking");
     } catch (error) {
       console.error("Auth error:", error.message);
+
       if (error.code === "auth/email-already-in-use") {
-        setErrorMsg("This email is already in use. Try logging in instead.");
+        setErrorMsg("This email is already in use.");
       } else if (error.code === "auth/invalid-credential") {
         setErrorMsg("Invalid email or password.");
       } else if (error.code === "auth/weak-password") {
-        setErrorMsg("Password should be at least 6 characters long.");
+        setErrorMsg("Password must be at least 6 characters.");
       } else {
         setErrorMsg("Something went wrong. Please try again.");
       }
@@ -122,9 +127,11 @@ const handleGoogleLogin = async () => {
   return (
     <div className="login-page">
       <div className="login-card">
+        
         <h1 className="login-title">
           {isSignup ? "Create Account" : "Welcome Back"}
         </h1>
+
         <p className="login-subtitle">
           {isSignup
             ? "Sign up to start using Pin My Park"
@@ -141,6 +148,7 @@ const handleGoogleLogin = async () => {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
+
           <input
             type="password"
             placeholder="Password"
@@ -148,6 +156,7 @@ const handleGoogleLogin = async () => {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+
           <button type="submit" className="primary-button">
             {isSignup ? "Sign Up" : "Login"}
           </button>
