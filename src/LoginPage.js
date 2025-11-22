@@ -1,3 +1,4 @@
+// --- your imports remain unchanged ---
 import React, { useState, useEffect } from "react";
 import { auth, googleProvider } from "./firebaseConfig";
 import {
@@ -21,7 +22,7 @@ function LoginPage() {
   const navigate = useNavigate();
 
   // -------------------------------------------------
-  // 🔵 1️⃣ Handle Google Redirect Result (mobile iOS/Android)
+  // 🔵 1️⃣ Handle Google Redirect Result
   // -------------------------------------------------
   useEffect(() => {
     let isMounted = true;
@@ -30,15 +31,11 @@ function LoginPage() {
       try {
         const result = await getRedirectResult(auth);
 
-        console.log("Redirect Result:", result);
-
         if (!isMounted) return;
 
         if (result?.user) {
-          // Redirect login succeeded
           navigate("/parking");
         } else {
-          // No redirect result — reset button
           setIsLoggingIn(false);
         }
       } catch (error) {
@@ -57,7 +54,6 @@ function LoginPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Slight delay prevents redirect race condition on iOS
         setTimeout(() => navigate("/parking"), 80);
       }
     });
@@ -65,7 +61,7 @@ function LoginPage() {
   }, [navigate]);
 
   // -------------------------------------------------
-  // 🔵 3️⃣ Reset "Signing in..." if user returns to page
+  // 🔵 3️⃣ Reset "Signing in..." on Back navigation
   // -------------------------------------------------
   useEffect(() => {
     const resetOnBack = () => setIsLoggingIn(false);
@@ -82,11 +78,8 @@ function LoginPage() {
     setErrorMsg("");
 
     try {
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
       await signInWithPopup(auth, googleProvider);
       navigate("/parking");
-      
     } catch (error) {
       console.error("Google login error:", error);
 
@@ -197,6 +190,15 @@ function LoginPage() {
             {isSignup ? "Login" : "Sign up"}
           </button>
         </p>
+
+        {/* 🟦 NEW BUTTON ADDED HERE */}
+        <button
+          className="secondary-button"
+          onClick={() => navigate("/parking")}
+        >
+          Continue without an account
+        </button>
+
       </div>
     </div>
   );
