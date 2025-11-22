@@ -17,20 +17,26 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Auth + Providers
+// -----------------------------
+// Auth + Google Provider
+// -----------------------------
 export const auth = getAuth(app);
+auth.useDeviceLanguage(); // 🔥 REQUIRED for redirect to work on iOS/Chrome
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: "select_account",
 });
 
+// Optional but recommended
+googleProvider.addScope("email");
+googleProvider.addScope("profile");
 
-// Firestore (for saving user data, parking history, etc.)
+// -----------------------------
+// Firestore
+// -----------------------------
 export const db = getFirestore(app);
 
-export const logout = () => {
-  return signOut(auth);
-};
+export const logout = () => signOut(auth);
 
 export default app;

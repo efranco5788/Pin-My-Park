@@ -17,65 +17,64 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const navigate = useNavigate();
 
   // -------------------------------------------------
-  // 🔵 FIRST: Handle Google redirect login results
-  // -------------------------------------------------
-useEffect(() => {
-  let isMounted = true;
-
-  (async () => {
-    try {
-      const result = await getRedirectResult(auth);
-
-      if (!isMounted) return;
-
-      console.log("Redirect login result:", result);
-
-      if (result?.user) {
-        // Redirect success
-        navigate("/parking");
-      } else {
-        // No redirect happened — user pressed Back or canceled
-        setIsLoggingIn(false);
-      }
-    } catch (error) {
-      console.error("Redirect login error:", error.message);
-      setIsLoggingIn(false);
-    }
-  })();
-
-  return () => {
-    isMounted = false;
-  };
-}, [navigate]);
-
-
-  // -------------------------------------------------
-  // 🔵 SECOND: Auto-redirect if user is already logged in
+  // 🔵 1️⃣ Handle Google Redirect Result (mobile iOS/Android)
   // -------------------------------------------------
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // small delay prevents iOS race condition
-        setTimeout(() => navigate("/parking"), 50);
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const result = await getRedirectResult(auth);
+
+        console.log("Redirect Result:", result);
+
+        if (!isMounted) return;
+
+        if (result?.user) {
+          // Redirect login succeeded
+          navigate("/parking");
+        } else {
+          // No redirect result — reset button
+          setIsLoggingIn(false);
+        }
+      } catch (error) {
+        console.error("Redirect login error:", error.message);
+        setErrorMsg("Google login failed. Please try again.");
+        setIsLoggingIn(false);
       }
-    });
-    return () => unsubscribe();
+    })();
+
+    return () => (isMounted = false);
   }, [navigate]);
 
   // -------------------------------------------------
-  // 🔵 Reset "Signing in..." when user presses Back
+  // 🔵 2️⃣ Auto-redirect if already logged in
   // -------------------------------------------------
   useEffect(() => {
-    const handlePageShow = () => setIsLoggingIn(false);
-    window.addEventListener("pageshow", handlePageShow);
-    return () => window.removeEventListener("pageshow", handlePageShow);
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Slight delay prevents redirect race condition on iOS
+        setTimeout(() => navigate("/parking"), 80);
+      }
+    });
+    return () => unsub();
+  }, [navigate]);
+
+  // -------------------------------------------------
+  // 🔵 3️⃣ Reset "Signing in..." if user returns to page
+  // -------------------------------------------------
+  useEffect(() => {
+    const resetOnBack = () => setIsLoggingIn(false);
+    window.addEventListener("pageshow", resetOnBack);
+    return () => window.removeEventListener("pageshow", resetOnBack);
   }, []);
 
   // -------------------------------------------------
-  // 🔵 Google Login
+  // 🔵 4️⃣ Google Login Handler
   // -------------------------------------------------
   const handleGoogleLogin = async () => {
     if (isLoggingIn) return;
@@ -85,32 +84,26 @@ useEffect(() => {
     try {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-      if (isMobile) {
-        // redirect is required for iOS/Chrome mobile
-        await signInWithRedirect(auth, googleProvider);
-      } else {
-        // popup works on desktop browsers
-        await signInWithPopup(auth, googleProvider);
-        navigate("/parking");
-      }
+      await signInWithPopup(auth, googleProvider);
+      navigate("/parking");
+      
     } catch (error) {
-      console.error("Google login failed:", error);
+      console.error("Google login error:", error);
 
       if (error.code === "auth/popup-blocked") {
-        setErrorMsg("Popup was blocked. Try using a different browser.");
+        setErrorMsg("Popup blocked. Try another browser.");
       } else if (error.code === "auth/popup-closed-by-user") {
         setErrorMsg("You closed the sign-in window.");
-      } else if (error.code === "auth/cancelled-popup-request") {
-        setErrorMsg("Another sign-in attempt is already running.");
       } else {
-        setErrorMsg("Google login failed. Please try again.");
+        setErrorMsg("Google login failed. Try again.");
       }
+
       setIsLoggingIn(false);
     }
   };
 
   // -------------------------------------------------
-  // 🔵 Email Signup/Login
+  // 🔵 5️⃣ Email Login / Signup Handler
   // -------------------------------------------------
   const handleEmailAuth = async (e) => {
     e.preventDefault();
@@ -122,6 +115,7 @@ useEffect(() => {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
+
       navigate("/parking");
     } catch (error) {
       console.error("Auth error:", error.message);
@@ -133,7 +127,7 @@ useEffect(() => {
       } else if (error.code === "auth/weak-password") {
         setErrorMsg("Password must be at least 6 characters.");
       } else {
-        setErrorMsg("Something went wrong. Please try again.");
+        setErrorMsg("Something went wrong. Try again.");
       }
     }
   };
