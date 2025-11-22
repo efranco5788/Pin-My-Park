@@ -1,158 +1,90 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaBars } from "react-icons/fa";
 import { auth } from "../firebaseConfig";
-import { signOut, onAuthStateChanged } from "firebase/auth";
-import "../globalColor.css";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { FaBars } from "react-icons/fa";
 import "../NavBar.css";
 
 const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const buttonRef = useRef(null);
-  const menuRef = useRef(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
 
-  /** ------------------------------
-   *  Detect user login state
-   * ------------------------------- */
+  // Listen for login state
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
+    const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
-  /** ------------------------------
-   *  Toggle dropdown menu
-   * ------------------------------- */
-  const toggleMenu = () => setIsOpen(!isOpen);
+  const toggleDrawer = () => setDrawerOpen(!drawerOpen);
 
-  /** ------------------------------
-   *  Close menu when clicking outside
-   * ------------------------------- */
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target)
-      ) {
-        setIsOpen(false);
-      }
-    };
+  const closeDrawer = () => setDrawerOpen(false);
 
-    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
-
-  /** ------------------------------
-   *  Logout with clean redirect flow
-   * ------------------------------- */
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
+    await signOut(auth);
+    closeDrawer();
 
-      setIsOpen(false);
-
-      // Delay to allow Firebase to update state
-      setTimeout(() => {
-        navigate("/login", { replace: true });
-
-        // Prevent returning to protected pages
-        setTimeout(() => {
-          window.history.forward();
-        }, 0);
-      }, 200);
-    } catch (error) {
-      console.error("Logout error:", error.message);
-    }
+    // Ensure clean redirect
+    setTimeout(() => {
+      navigate("/login", { replace: true });
+      window.history.forward();
+    }, 200);
   };
 
   return (
-    <nav className="navbar-container">
-      <div className="navbar-inner">
-        {/* App Logo / Title */}
+    <>
+      {/* Top navbar bar */}
+      <nav className="navbar-mobile">
         <div className="navbar-title">
-          <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
+          <Link to="/" onClick={closeDrawer}>
             Pin My Park
           </Link>
         </div>
 
-        {/* Hamburger Menu */}
-        <button
-          ref={buttonRef}
-          onClick={toggleMenu}
-          className="text-white p-2 flex items-center"
-          style={{ background: "transparent", border: "none" }}
-        >
-          <FaBars className="w-6 h-6 text-white" />
+        <button className="navbar-icon" onClick={toggleDrawer}>
+          <FaBars size={22} />
         </button>
-      </div>
+      </nav>
 
-      {/* Dropdown Menu */}
-      {isOpen && (
-        <div ref={menuRef} className="navbar-menu open" role="menu">
-          <ul>
-            <li>
-              <Link
-                to="/"
-                onClick={() => setIsOpen(false)}
-                className="navbar-link"
-              >
-                Home
-              </Link>
-            </li>
+      {/* Slide-in drawer */}
+      <div className={`drawer-overlay ${drawerOpen ? "open" : ""}`} onClick={closeDrawer}></div>
 
-            {user && (
-              <li>
-                <Link
-                  to="/profile"
-                  onClick={() => setIsOpen(false)}
-                  className="navbar-link"
-                >
-                  Profile
-                </Link>
-              </li>
-            )}
-
-            {user && (
-              <li>
-                <Link
-                  to="/history"
-                  onClick={() => setIsOpen(false)}
-                  className="navbar-link"
-                >
-                  Parking History
-                </Link>
-              </li>
-            )}
-
-            {user ? (
-              <li>
-                <Link
-                  onClick={handleLogout}
-                  className="navbar-link"
-                >
-                  Logout
-                </Link>
-              </li>
-            ) : (
-              <li>
-                <Link
-                  to="/login"
-                  onClick={() => setIsOpen(false)}
-                  className="navbar-link"
-                >
-                  Login
-                </Link>
-              </li>
-            )}
-          </ul>
+      <aside className={`drawer ${drawerOpen ? "open" : ""}`}>
+        <div className="drawer-header">
+          <h3>Menu</h3>
+          {user && <p className="drawer-email">{user.email}</p>}
         </div>
-      )}
-    </nav>
+
+        <ul className="drawer-menu">
+          <li>
+            <Link to="/" onClick={closeDrawer}>Home</Link>
+          </li>
+
+          {user && (
+            <>
+              <li>
+                <Link to="/profile" onClick={closeDrawer}>Profile</Link>
+              </li>
+              <li>
+                <Link to="/history" onClick={closeDrawer}>Parking History</Link>
+              </li>
+            </>
+          )}
+
+          {!user ? (
+            <li>
+              <Link to="/login" onClick={closeDrawer}>Login</Link>
+            </li>
+          ) : (
+            <li>
+              <button className="logout-btn" onClick={handleLogout}>
+                Logout
+              </button>
+            </li>
+          )}
+        </ul>
+      </aside>
+    </>
   );
 };
 
