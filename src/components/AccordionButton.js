@@ -1,31 +1,49 @@
-import React from "react";
+// src/components/AccordionButton.jsx
+import React, { useState, useRef } from "react";
 
-function AccordionButton({ title, children, onSave }) {
+/**
+ * AccordionButton
+ * Props:
+ * - title: string
+ * - children: node (form fields)
+ * - onSave: fn called on form submit
+ * - defaultOpen: boolean (open by default)
+ */
+function AccordionButton({ title, children, onSave, defaultOpen = false }) {
+  const [isOpen, setIsOpen] = useState(Boolean(defaultOpen));
+  // unique id per instance so multiple accordions don't conflict
+  const idRef = useRef(`accordion-${Math.random().toString(36).slice(2, 9)}`);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave();
+    if (typeof onSave === "function") onSave();
   };
 
+  const buttonClass = `accordion-button${isOpen ? "" : " collapsed"}`;
+  const collapseClass = `accordion-collapse collapse${isOpen ? " show" : ""}`;
+  const ariaExpanded = isOpen ? "true" : "false";
+
   return (
-    <div className="accordion" id="accordionAdditionalInfo">
+    <div className="accordion" id={`${idRef.current}-parent`}>
       <div className="accordion-item">
-        <h2 className="accordion-header" id="headingAdditionalInfo">
+        <h2 className="accordion-header" id={`${idRef.current}-heading`}>
           <button
-            className="accordion-button"
+            className={buttonClass}
             type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#collapseAdditionalInfo"
-            aria-expanded="true"
-            aria-controls="collapseAdditionalInfo"
+            aria-expanded={ariaExpanded}
+            aria-controls={`${idRef.current}-collapse`}
+            onClick={() => setIsOpen((s) => !s)}
+            style={{ cursor: "pointer" }}
           >
             {title}
           </button>
         </h2>
+
         <div
-          id="collapseAdditionalInfo"
-          className="accordion-collapse collapse"
-          aria-labelledby="headingAdditionalInfo"
-          data-bs-parent="#accordionAdditionalInfo"
+          id={`${idRef.current}-collapse`}
+          className={collapseClass}
+          aria-labelledby={`${idRef.current}-heading`}
+          data-bs-parent={`#${idRef.current}-parent`}
         >
           <div className="accordion-body">
             <form onSubmit={handleSubmit}>

@@ -1,17 +1,23 @@
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+// src/ParkingLocationPage.js
+import React, { useState, useEffect, Suspense } from "react";
 import { Helmet } from "react-helmet";
-import { ToastContainer, toast } from "react-toastify";
+import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
 import useParkingLocation from "./hooks/useParkingLocation";
 import useGeolocation from "./hooks/useGeolocation";
-import AccordionButton from "./components/AccordionButton";
-import { Modal, Button } from "react-bootstrap";
 import usePersistentTimer from "./hooks/usePersistentTimer";
+import ParkingWidgets from "./components/ParkingWidgets";
+
+import useModals from "./hooks/useModals";
+import useParkingActions from "./hooks/useParkingActions";
+
+import AccordionButton from "./components/AccordionButton";
 import HowItWorksModal from "./components/HowItWorksModal";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import TermsOfServiceModal from "./components/TermsOfServiceModal";
-import { db, auth } from "./firebaseConfig";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { Modal, Button } from "react-bootstrap";
+
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./styles.css";
 
@@ -22,14 +28,19 @@ const TimerDurationSection = React.lazy(() => import("./components/TimerDuration
 
 const DEFAULT_LOCATION = { latitude: 40.7128, longitude: -74.0060 };
 
-function ParkingLocationPage() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [showErrorModal, setShowErrorModal] = useState(false);
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
+function Loader({ text = "Loading…" }) {
+  return (
+    <div style={{ padding: 20, textAlign: "center", color: "#ecf0f1" }}>
+      {text}
+    </div>
+  );
+}
 
+function ParkingLocationPage() {
+  // local UI state
+  const [isLoadingLocal, setIsLoadingLocal] = useState(false);
+
+  // domain hooks
   const {
     location,
     timestamp,
@@ -41,7 +52,7 @@ function ParkingLocationPage() {
     clearParkingLocation,
   } = useParkingLocation();
 
-  const { getLocation } = useGeolocation();
+  const { getLocation, isFetching, highPrecision, toggleHighPrecision } = useGeolocation();
 
   const {
     timerRunning,
@@ -52,86 +63,53 @@ function ParkingLocationPage() {
     hasRestored,
   } = usePersistentTimer(isParkingSaved);
 
+  // modal management
+  const { activeModal, errorMessage, showModal, hideModal, showError } = useModals();
+
+  // consolidated Suspense wrapper will be used below
+  // parking actions hook - inject dependencies
+  const { isSaving, saveParking, clearParking } = useParkingActions({
+    getLocation,
+    saveParkingLocation,
+    startTimer,
+    stopTimer,
+    resetTimer,
+    additionalInfo,
+    address,
+    showError,
+  });
+
+  // Keep timer behavior on restore
   useEffect(() => {
     if (hasRestored && isParkingSaved && !timerRunning) {
       startTimer();
     }
   }, [hasRestored, isParkingSaved, timerRunning, startTimer]);
 
+  // Show ephemeral modal when there's an error (managed by useModals)
   useEffect(() => {
-    if (error) {
-      console.error("Error occurred:", error);
-      setShowErrorModal(true);
-      const timer = setTimeout(() => {
-        setError(null);
-        setShowErrorModal(false);
+    if (errorMessage) {
+      // automatically hide after 5s
+      const t = setTimeout(() => {
+        hideModal();
       }, 5000);
-      return () => clearTimeout(timer);
+      return () => clearTimeout(t);
     }
-  }, [error]);
+  }, [errorMessage, hideModal]);
 
-  // 🧩 Save parking location + Firestore + toast
-  const handleSaveParking = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  // Handlers (thin wrappers)
+  const handleSaveParking = async () => {
+    setIsLoadingLocal(true);
+    await saveParking();
+    setIsLoadingLocal(false);
+  };
 
-    try {
-      const locationData = await getLocation();
-      if (!locationData?.latitude || !locationData?.longitude) {
-        throw new Error("Failed to get a valid location. Please try again.");
-      }
-
-      // Save locally
-      saveParkingLocation(
-        { latitude: locationData.latitude, longitude: locationData.longitude },
-        locationData.timestamp || Date.now()
-      );
-
-      // Save to Firestore if user logged in
-      const user = auth.currentUser;
-      if (user) {
-        await addDoc(collection(db, "parkingHistory", user.uid, "spots"), {
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          timestamp: serverTimestamp(),
-          address: address || "Unknown location",
-          floor: additionalInfo.floor || "",
-          section: additionalInfo.section || "",
-        });
-
-        toast.success("✅ Parking spot saved to your history!", {
-          position: "top-center",
-          autoClose: 3000,
-        });
-      } else {
-        toast.info("ℹ️ You’re not logged in. Spot saved locally only.", {
-          position: "top-center",
-          autoClose: 4000,
-        });
-      }
-
-      stopTimer();
-      startTimer();
-    } catch (error) {
-      console.error("Error saving parking:", error);
-      setError(error.message || "Failed to get location.");
-      toast.error("❌ Failed to save parking spot. Please try again.", {
-        position: "top-center",
-        autoClose: 4000,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getLocation, saveParkingLocation, stopTimer, startTimer, additionalInfo, address]);
-
-  const handleClearParking = () => {
+  const handleClearParking = async () => {
+    // call clearParking for toasts, then clear local storage via hook
+    await clearParking();
     clearParkingLocation();
     stopTimer();
     resetTimer();
-    toast.info("🧹 Parking info cleared.", {
-      position: "top-center",
-      autoClose: 3000,
-    });
   };
 
   const displayedLocation = location || DEFAULT_LOCATION;
@@ -145,7 +123,6 @@ function ParkingLocationPage() {
         color: "#ecf0f1",
       }}
     >
-      {/* SEO Metadata */}
       <Helmet>
         <title>Pin My Park – Find & Save Your Parking Location Easily</title>
         <meta
@@ -158,10 +135,9 @@ function ParkingLocationPage() {
         />
       </Helmet>
 
-      {/* Toast container */}
       <ToastContainer theme="colored" />
 
-      {/* Content-rich Intro */}
+      {/* Intro */}
       <header className="text-center mt-3">
         <p
           style={{
@@ -173,52 +149,22 @@ function ParkingLocationPage() {
           }}
         >
           Pin My Park is your smart parking assistant. With one tap, save your
-          parking spot using accurate GPS data. Add notes like your parking
-          level or section, and when it’s time to leave, simply open the app and
-          navigate back to your car.
+          parking spot using accurate GPS data. Add notes like your parking level or section,
+          and when it’s time to leave, simply open the app and navigate back to your car.
         </p>
       </header>
 
       <div className="text-center mt-3">
-        <button
-          className="btn btn-outline-light"
-          onClick={() => setShowHowItWorks(true)}
-        >
+        <button className="btn btn-outline-light" onClick={() => showModal("how")}>
           How It Works
         </button>
       </div>
-
-      {/* Core App Buttons */}
-      <section className="d-flex flex-column align-items-center mt-4" id="btnSection">
-        <button
-          className={`btn btn-lg shadow ${
-            isParkingSaved ? "btn-warning" : "btn-success pulse-animation"
-          }`}
-          onClick={isParkingSaved ? handleClearParking : handleSaveParking}
-          disabled={isLoading}
-        >
-          {isParkingSaved ? "Clear Parking Info" : "Save My Parking Spot"}
-        </button>
-
-        {!isParkingSaved && (
-          <small className="text-light mt-2 fade-in-subtext">
-            We’ll use GPS to remember where you parked.
-          </small>
-        )}
-      </section>
-
-      {isLoading && (
-        <div
-          className="spinner-border text-primary mt-3"
-          role="status"
-          aria-live="polite"
-        ></div>
-      )}
-
-      {/* Additional Info Accordion */}
+      
+      {/* Additional info */}
       <section className="mt-5">
         <AccordionButton
           title="Additional Information"
+          defaultOpen={true}
           onSave={() => saveAdditionalInfo(additionalInfo)}
         >
           <input
@@ -226,80 +172,76 @@ function ParkingLocationPage() {
             className="form-control mb-2"
             placeholder="Parking Floor (e.g., Floor 2A)"
             value={additionalInfo.floor}
-            onChange={(e) =>
-              saveAdditionalInfo({ ...additionalInfo, floor: e.target.value })
-            }
+            onChange={(e) => saveAdditionalInfo({ ...additionalInfo, floor: e.target.value })}
           />
           <input
             type="text"
             className="form-control"
             placeholder="Section (e.g., Near Elevator)"
             value={additionalInfo.section}
-            onChange={(e) =>
-              saveAdditionalInfo({ ...additionalInfo, section: e.target.value })
-            }
+            onChange={(e) => saveAdditionalInfo({ ...additionalInfo, section: e.target.value })}
           />
         </AccordionButton>
       </section>
 
-      {/* Timer */}
-      <section className="mt-5">
-        <Suspense fallback={<div>Loading timer...</div>}>
-          <TimerDurationSection
-            timerRunning={timerRunning}
-            elapsedTime={elapsedTime}
-            setElapsedTime={startTimer}
-          />
-        </Suspense>
+      {/* Controls */}
+      <section className="d-flex flex-column align-items-center mt-4" id="btnSection">
+        <button
+          className={`modern-btn btn-lg shadow ${isParkingSaved ? "btn-warning" : "btn-primary pulse-animation"}`}
+          onClick={isParkingSaved ? handleClearParking : handleSaveParking}
+          disabled={isSaving || isFetching || isLoadingLocal}
+        >
+          {isParkingSaved ? "Clear Parking Info" : (isSaving || isFetching || isLoadingLocal) ? "Saving..." : "Save My Parking Spot"}
+        </button>
+
+        {!isParkingSaved && (
+          <small className="text-light mt-2 fade-in-subtext">
+            We’ll use GPS to remember where you parked.
+          </small>
+        )}
+
+        {/* High precision toggle (optional UI) */}
+        <div style={{ marginTop: 10 }}>
+          <label style={{ color: "#ecf0f1", fontSize: 13 }}>
+            <input type="checkbox" checked={highPrecision} onChange={toggleHighPrecision} />
+            {" "}High precision mode
+          </label>
+        </div>
       </section>
 
-      {/* Map */}
-      <section className="mt-5">
-        <Suspense fallback={<div>Loading map...</div>}>
-          <Map location={displayedLocation} />
-        </Suspense>
-      </section>
-
-      {/* Saved Parking Info */}
-      {isParkingSaved && (
-        <>
-          <section className="mt-4">
-            <Suspense fallback={<div>Loading navigation...</div>}>
-              <NavigationButton location={location} />
-            </Suspense>
-          </section>
-
-          <section className="mt-4">
-            <Suspense fallback={<div>Loading parking details...</div>}>
-              <ParkingLocation
-                location={location}
-                address={address}
-                timestamp={timestamp}
-              />
-            </Suspense>
-          </section>
-        </>
+      {/* Loading spinner */}
+      {(isSaving || isFetching || isLoadingLocal) && (
+        <div className="spinner-border text-primary mt-3" role="status" aria-live="polite" />
       )}
 
-      {/* Error Modal */}
-      <Modal show={showErrorModal} onHide={() => setShowErrorModal(false)} centered>
+      {/* Consolidated Suspense for lazy components */}
+      <ParkingWidgets
+      location={location}
+      address={address}
+      timestamp={timestamp}
+      isParkingSaved={isParkingSaved}
+      />
+
+
+      {/* Error modal uses single modal system via useModals */}
+      <Modal show={activeModal === "error"} onHide={() => hideModal()} centered>
         <Modal.Header closeButton>
           <Modal.Title>Error</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <p>{error}</p>
+          <p>{errorMessage}</p>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="danger" onClick={() => setShowErrorModal(false)}>
+          <Button variant="danger" onClick={() => hideModal()}>
             Close
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Informational Modals */}
-      <HowItWorksModal show={showHowItWorks} onClose={() => setShowHowItWorks(false)} />
-      <PrivacyPolicyModal show={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
-      <TermsOfServiceModal show={showTermsModal} onClose={() => setShowTermsModal(false)} />
+      {/* Informational modals */}
+      <HowItWorksModal show={activeModal === "how"} onClose={() => hideModal()} />
+      <PrivacyPolicyModal show={activeModal === "privacy"} onClose={() => hideModal()} />
+      <TermsOfServiceModal show={activeModal === "terms"} onClose={() => hideModal()} />
 
       {/* Footer */}
       <footer className="text-center mt-5" style={{ fontSize: "14px" }}>
@@ -308,24 +250,14 @@ function ParkingLocationPage() {
           save your car’s location and find it later easily.
         </p>
         <div>
-          <button
-            className="btn btn-link text-light p-0 me-3"
-            style={{ textDecoration: "underline" }}
-            onClick={() => setShowPrivacyModal(true)}
-          >
+          <button className="btn btn-link text-light p-0 me-3" style={{ textDecoration: "underline" }} onClick={() => showModal("privacy")}>
             Privacy Policy
           </button>
-          <button
-            className="btn btn-link text-light p-0"
-            style={{ textDecoration: "underline" }}
-            onClick={() => setShowTermsModal(true)}
-          >
+          <button className="btn btn-link text-light p-0" style={{ textDecoration: "underline" }} onClick={() => showModal("terms")}>
             Terms of Service
           </button>
         </div>
-        <p className="text-muted mt-2">
-          © {new Date().getFullYear()} Pin My Park. All Rights Reserved.
-        </p>
+        <p className="text-muted mt-2">© {new Date().getFullYear()} Pin My Park. All Rights Reserved.</p>
       </footer>
     </main>
   );
