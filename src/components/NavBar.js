@@ -59,6 +59,9 @@ const Navbar = () => {
           <li>
             <Link to="/" onClick={closeDrawer}>Home</Link>
           </li>
+          <li>
+                <Link to="/parking" onClick={closeDrawer}>Parking</Link>
+          </li>
 
           {user && (
             <>
