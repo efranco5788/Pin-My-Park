@@ -1,7 +1,7 @@
 // src/ParkingLocationPage.js
 import React, { useState, useEffect, Suspense } from "react";
 import { Helmet } from "react-helmet";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import useParkingLocation from "./hooks/useParkingLocation";
@@ -10,13 +10,16 @@ import usePersistentTimer from "./hooks/usePersistentTimer";
 import ParkingWidgets from "./components/ParkingWidgets";
 
 import useModals from "./hooks/useModals";
-import useParkingActions from "./hooks/useParkingActions";
+import useSyncQueue from "./hooks/useSyncQueue";
 
 import AccordionButton from "./components/AccordionButton";
 import HowItWorksModal from "./components/HowItWorksModal";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import TermsOfServiceModal from "./components/TermsOfServiceModal";
 import { Modal, Button } from "react-bootstrap";
+
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "./firebaseConfig";
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./styles.css";
@@ -66,18 +69,8 @@ function ParkingLocationPage() {
   // modal management
   const { activeModal, errorMessage, showModal, hideModal, showError } = useModals();
 
-  // consolidated Suspense wrapper will be used below
-  // parking actions hook - inject dependencies
-  const { isSaving, saveParking, clearParking } = useParkingActions({
-    getLocation,
-    saveParkingLocation,
-    startTimer,
-    stopTimer,
-    resetTimer,
-    additionalInfo,
-    address,
-    showError,
-  });
+  // sync queue for optimistic writes
+  const { queue, isSyncing, addToQueue, syncAll } = useSyncQueue();
 
   // Keep timer behavior on restore
   useEffect(() => {
@@ -86,10 +79,9 @@ function ParkingLocationPage() {
     }
   }, [hasRestored, isParkingSaved, timerRunning, startTimer]);
 
-  // Show ephemeral modal when there's an error (managed by useModals)
+  // auto-hide error modal if it appears
   useEffect(() => {
     if (errorMessage) {
-      // automatically hide after 5s
       const t = setTimeout(() => {
         hideModal();
       }, 5000);
@@ -97,19 +89,98 @@ function ParkingLocationPage() {
     }
   }, [errorMessage, hideModal]);
 
-  // Handlers (thin wrappers)
+  // Handlers (with optimistic queue integration)
   const handleSaveParking = async () => {
     setIsLoadingLocal(true);
-    await saveParking();
-    setIsLoadingLocal(false);
+
+    try {
+      const locationData = await getLocation();
+      if (!locationData?.latitude || !locationData?.longitude) {
+        throw new Error("Failed to get a valid location. Please try again.");
+      }
+
+      // 1) Save locally immediately
+      saveParkingLocation(
+        { latitude: locationData.latitude, longitude: locationData.longitude },
+        locationData.timestamp || Date.now()
+      );
+
+      const payload = {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
+        address: address || "",
+        floor: additionalInfo?.floor || "",
+        section: additionalInfo?.section || "",
+        name: additionalInfo?.name || "",
+      };
+
+      const user = auth.currentUser;
+
+      // 2) If no user or offline -> queue and inform user
+      if (!user || !navigator.onLine) {
+        addToQueue(payload);
+        toast.info("📡 Saved offline — will sync when online.", {
+          position: "top-center",
+          autoClose: 3000,
+        });
+
+        stopTimer();
+        startTimer();
+        return;
+      }
+
+      // 3) Try direct Firestore write
+      try {
+        await addDoc(collection(db, "parkingHistory", user.uid, "spots"), {
+          ...payload,
+          timestamp: serverTimestamp(),
+        });
+
+        toast.success("✅ Parking spot saved to your history!", {
+          position: "top-center",
+          autoClose: 3000,
+        });
+
+        // try flush queued items as well
+        syncAll();
+      } catch (fireErr) {
+        // on failure, queue item and notify user
+        console.warn("Firestore write failed; queued for retry.", fireErr);
+        addToQueue(payload);
+        toast.error("❌ Failed to upload — saved offline instead.", {
+          position: "top-center",
+          autoClose: 4000,
+        });
+      }
+
+      stopTimer();
+      startTimer();
+    } catch (err) {
+      console.error("Error saving parking:", err);
+      showError(err?.message || "Failed to save parking.");
+      toast.error("❌ Failed to save parking spot. Please try again.", {
+        position: "top-center",
+        autoClose: 4000,
+      });
+    } finally {
+      setIsLoadingLocal(false);
+    }
   };
 
   const handleClearParking = async () => {
-    // call clearParking for toasts, then clear local storage via hook
-    await clearParking();
-    clearParkingLocation();
-    stopTimer();
-    resetTimer();
+    // clear local + reset timers + toast
+    try {
+      clearParkingLocation();
+      stopTimer();
+      resetTimer();
+      toast.info("🧹 Parking info cleared.", {
+        position: "top-center",
+        autoClose: 3000,
+      });
+    } catch (err) {
+      console.error("Error clearing parking:", err);
+      showError("Failed to clear parking location.");
+    }
   };
 
   const displayedLocation = location || DEFAULT_LOCATION;
@@ -159,7 +230,7 @@ function ParkingLocationPage() {
           How It Works
         </button>
       </div>
-      
+
       {/* Additional info */}
       <section className="mt-5">
         <AccordionButton
@@ -189,9 +260,9 @@ function ParkingLocationPage() {
         <button
           className={`modern-btn btn-lg shadow ${isParkingSaved ? "btn-warning" : "btn-primary pulse-animation"}`}
           onClick={isParkingSaved ? handleClearParking : handleSaveParking}
-          disabled={isSaving || isFetching || isLoadingLocal}
+          disabled={isSyncing || isFetching || isLoadingLocal}
         >
-          {isParkingSaved ? "Clear Parking Info" : (isSaving || isFetching || isLoadingLocal) ? "Saving..." : "Save My Parking Spot"}
+          {isParkingSaved ? "Clear Parking Info" : (isSyncing || isFetching || isLoadingLocal) ? "Saving..." : "Save My Parking Spot"}
         </button>
 
         {!isParkingSaved && (
@@ -207,21 +278,31 @@ function ParkingLocationPage() {
             {" "}High precision mode
           </label>
         </div>
+
+        {/* Sync status */}
+        <div style={{ marginTop: 10 }}>
+          {queue && queue.length > 0 ? (
+            <small style={{ color: "#ffd166" }}>🔄 Pending sync ({queue.length})</small>
+          ) : (
+            <small style={{ color: "#7be495" }}>✔ All data synced</small>
+          )}
+        </div>
       </section>
 
       {/* Loading spinner */}
-      {(isSaving || isFetching || isLoadingLocal) && (
+      {(isSyncing || isFetching || isLoadingLocal) && (
         <div className="spinner-border text-primary mt-3" role="status" aria-live="polite" />
       )}
 
-      {/* Consolidated Suspense for lazy components */}
-      <ParkingWidgets
-      location={location}
-      address={address}
-      timestamp={timestamp}
-      isParkingSaved={isParkingSaved}
-      />
-
+      {/* Consolidated Widgets (Map, Navigation, ParkingLocation, Timer) */}
+      <Suspense fallback={<Loader text="Loading map and controls..." />}>
+        <ParkingWidgets
+          location={displayedLocation}
+          address={address}
+          timestamp={timestamp}
+          isParkingSaved={isParkingSaved}
+        />
+      </Suspense>
 
       {/* Error modal uses single modal system via useModals */}
       <Modal show={activeModal === "error"} onHide={() => hideModal()} centered>
