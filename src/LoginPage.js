@@ -1,4 +1,3 @@
-// --- your imports remain unchanged ---
 import React, { useState, useEffect } from "react";
 import { auth, googleProvider } from "./firebaseConfig";
 import {
@@ -8,6 +7,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import "./LoginPage.css";
@@ -19,10 +19,14 @@ function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+
   const navigate = useNavigate();
 
   // -------------------------------------------------
-  // 🔵 1️⃣ Handle Google Redirect Result
+  // 🔵 Google redirect result
   // -------------------------------------------------
   useEffect(() => {
     let isMounted = true;
@@ -49,7 +53,7 @@ function LoginPage() {
   }, [navigate]);
 
   // -------------------------------------------------
-  // 🔵 2️⃣ Auto-redirect if already logged in
+  // 🔵 Redirect if already logged in
   // -------------------------------------------------
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -61,7 +65,7 @@ function LoginPage() {
   }, [navigate]);
 
   // -------------------------------------------------
-  // 🔵 3️⃣ Reset "Signing in..." on Back navigation
+  // 🔵 Reset back button UI
   // -------------------------------------------------
   useEffect(() => {
     const resetOnBack = () => setIsLoggingIn(false);
@@ -70,7 +74,7 @@ function LoginPage() {
   }, []);
 
   // -------------------------------------------------
-  // 🔵 4️⃣ Google Login Handler
+  // 🔵 Google Login
   // -------------------------------------------------
   const handleGoogleLogin = async () => {
     if (isLoggingIn) return;
@@ -96,7 +100,7 @@ function LoginPage() {
   };
 
   // -------------------------------------------------
-  // 🔵 5️⃣ Email Login / Signup Handler
+  // 🔵 Email Login / Signup
   // -------------------------------------------------
   const handleEmailAuth = async (e) => {
     e.preventDefault();
@@ -125,10 +129,31 @@ function LoginPage() {
     }
   };
 
+  // -------------------------------------------------
+  // 🔵 Password Reset
+  // -------------------------------------------------
+  const handlePasswordReset = async () => {
+    if (!resetEmail) {
+      setResetMessage("Please enter your email.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      setResetMessage("Reset link sent! Check your inbox and/or Junk.");
+    } catch (error) {
+      console.error("Reset error:", error.message);
+      if (error.code === "auth/user-not-found") {
+        setResetMessage("No account found with that email.");
+      } else {
+        setResetMessage("Error sending reset email.");
+      }
+    }
+  };
+
   return (
     <div className="login-page">
       <div className="login-card">
-        
         <h1 className="login-title">
           {isSignup ? "Create Account" : "Welcome Back"}
         </h1>
@@ -157,6 +182,20 @@ function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+
+          {/* 🔵 Forgot password link */}
+          {!isSignup && (
+            <p
+              className="forgot-password"
+              onClick={() => {
+                setResetModalOpen(true);
+                setResetEmail(email);
+                setResetMessage("");
+              }}
+            >
+              Forgot password?
+            </p>
+          )}
 
           <button type="submit" className="primary-button">
             {isSignup ? "Sign Up" : "Login"}
@@ -191,15 +230,44 @@ function LoginPage() {
           </button>
         </p>
 
-        {/* 🟦 NEW BUTTON ADDED HERE */}
         <button
           className="secondary-button"
           onClick={() => navigate("/parking")}
         >
           Continue without an account
         </button>
-
       </div>
+
+      {/* 🔵 PASSWORD RESET MODAL */}
+      {resetModalOpen && (
+        <div className="reset-overlay">
+          <div className="reset-modal">
+            <h3>Reset Password</h3>
+
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={resetEmail}
+              onChange={(e) => setResetEmail(e.target.value)}
+            />
+
+            {resetMessage && <p className="reset-message">{resetMessage}</p>}
+
+            <div className="reset-buttons">
+              <button className="primary-button" onClick={handlePasswordReset}>
+                Send Reset Link
+              </button>
+
+              <button
+                className="secondary-button"
+                onClick={() => setResetModalOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

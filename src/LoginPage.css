@@ -271,4 +271,60 @@
   transform: translateY(-2px);
 }
 
+/* Forgot Password Link */
+.forgot-password {
+  text-align: right;
+  margin-top: -8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #4da6ff;
+  cursor: pointer;
+}
 
+.forgot-password:hover {
+  opacity: 0.8;
+}
+
+/* Reset Modal */
+.reset-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.reset-modal {
+  background: white;
+  padding: 22px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 340px;
+  text-align: center;
+  color: #333;
+}
+
+.reset-modal input {
+  width: 100%;
+  padding: 10px;
+  margin: 12px 0;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.reset-message {
+  font-size: 14px;
+  margin-top: 6px;
+  color: #16a085;
+}
+
+.reset-buttons {
+  display: flex;
+  gap: 10px;
+}
