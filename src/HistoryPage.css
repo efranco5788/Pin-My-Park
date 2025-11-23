@@ -1,0 +1,136 @@
+/* Wrapper */
+.history-wrapper {
+  padding: 20px;
+  color: #fff;
+  font-family: "Poppins", sans-serif;
+}
+
+.history-title {
+  text-align: center;
+  font-size: 26px;
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.no-history {
+  text-align: center;
+  opacity: 0.8;
+}
+
+/* Cards */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history-card {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.history-name {
+    color: black;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.history-time {
+    color: black;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.history-coords {
+    color: black;
+  margin: 10px 0;
+}
+
+/* Buttons */
+.history-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.navigate-btn,
+.rename-btn,
+.delete-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Colors */
+.navigate-btn {
+  background: #16a085;
+}
+.rename-btn {
+  background: #3498db;
+}
+.delete-btn {
+  background: #e74c3c;
+}
+
+/* Rename Modal */
+.rename-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.rename-modal {
+  background: white;
+  color: #333;
+  padding: 20px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 350px;
+  text-align: center;
+}
+
+.rename-input {
+  width: 100%;
+  padding: 10px;
+  margin: 12px 0;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.rename-modal-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.save-rename-btn {
+  flex: 1;
+  background: #16a085;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.cancel-rename-btn {
+  flex: 1;
+  background: #bdc3c7;
+  color: #333;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+}
