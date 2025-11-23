@@ -328,3 +328,42 @@
   display: flex;
   gap: 10px;
 }
+
+/* Eye icon button */
+.eye-button {
+  position: absolute;
+  right: 12px;
+  top: 9px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.password-container {
+  position: relative;
+  width: 100%;
+}
+
+.invalid-input {
+  border: 1px solid #ff4d4d !important;
+}
+
+.validation-text {
+  font-size: 13px;
+  color: #ff4d4d;
+  margin-top: -8px;
+  margin-bottom: 10px;
+}
+
+.forgot-button {
+  background: none;
+  border: none;
+  color: #2c7be5;
+  font-size: 14px;
+  margin-top: -5px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  text-align: right;
+  width: 100%;
+}

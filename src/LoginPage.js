@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { auth, googleProvider } from "./firebaseConfig";
 import {
   signInWithPopup,
-  signInWithRedirect,
   getRedirectResult,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -14,64 +13,69 @@ import "./LoginPage.css";
 
 function LoginPage() {
   const [isSignup, setIsSignup] = useState(false);
+
+  // Inputs
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // UI states
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetMessage, setResetMessage] = useState("");
+  // Validation
+  const [emailValid, setEmailValid] = useState(true);
 
   const navigate = useNavigate();
 
   // -------------------------------------------------
-  // 🔵 Google redirect result
+  // 🔵 Handle Google Redirect Result
   // -------------------------------------------------
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
     (async () => {
       try {
         const result = await getRedirectResult(auth);
+        if (!mounted) return;
 
-        if (!isMounted) return;
-
-        if (result?.user) {
-          navigate("/parking");
-        } else {
-          setIsLoggingIn(false);
-        }
-      } catch (error) {
-        console.error("Redirect login error:", error.message);
-        setErrorMsg("Google login failed. Please try again.");
+        if (result?.user) navigate("/parking");
+        else setIsLoggingIn(false);
+      } catch (e) {
+        setErrorMsg("Google login failed. Try again.");
         setIsLoggingIn(false);
       }
     })();
 
-    return () => (isMounted = false);
+    return () => (mounted = false);
   }, [navigate]);
 
   // -------------------------------------------------
-  // 🔵 Redirect if already logged in
+  // 🔵 Auto-redirect if already logged in
   // -------------------------------------------------
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setTimeout(() => navigate("/parking"), 80);
-      }
+      if (user) setTimeout(() => navigate("/parking"), 100);
     });
     return () => unsub();
   }, [navigate]);
 
   // -------------------------------------------------
-  // 🔵 Reset back button UI
+  // 🔵 Reset "Signing in..." on back navigation
   // -------------------------------------------------
   useEffect(() => {
-    const resetOnBack = () => setIsLoggingIn(false);
-    window.addEventListener("pageshow", resetOnBack);
-    return () => window.removeEventListener("pageshow", resetOnBack);
+    const handler = () => setIsLoggingIn(false);
+    window.addEventListener("pageshow", handler);
+    return () => window.removeEventListener("pageshow", handler);
   }, []);
+
+  // -------------------------------------------------
+  // 🔵 Real-time email validation
+  // -------------------------------------------------
+  useEffect(() => {
+    if (email.length === 0) setEmailValid(true);
+    else setEmailValid(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+  }, [email]);
 
   // -------------------------------------------------
   // 🔵 Google Login
@@ -85,16 +89,13 @@ function LoginPage() {
       await signInWithPopup(auth, googleProvider);
       navigate("/parking");
     } catch (error) {
-      console.error("Google login error:", error);
-
       if (error.code === "auth/popup-blocked") {
         setErrorMsg("Popup blocked. Try another browser.");
       } else if (error.code === "auth/popup-closed-by-user") {
-        setErrorMsg("You closed the sign-in window.");
+        setErrorMsg("Popup closed before completing sign in.");
       } else {
         setErrorMsg("Google login failed. Try again.");
       }
-
       setIsLoggingIn(false);
     }
   };
@@ -106,54 +107,60 @@ function LoginPage() {
     e.preventDefault();
     setErrorMsg("");
 
-    try {
-      if (isSignup) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-
-      navigate("/parking");
-    } catch (error) {
-      console.error("Auth error:", error.message);
-
-      if (error.code === "auth/email-already-in-use") {
-        setErrorMsg("This email is already in use.");
-      } else if (error.code === "auth/invalid-credential") {
-        setErrorMsg("Invalid email or password.");
-      } else if (error.code === "auth/weak-password") {
-        setErrorMsg("Password must be at least 6 characters.");
-      } else {
-        setErrorMsg("Something went wrong. Try again.");
-      }
-    }
-  };
-
-  // -------------------------------------------------
-  // 🔵 Password Reset
-  // -------------------------------------------------
-  const handlePasswordReset = async () => {
-    if (!resetEmail) {
-      setResetMessage("Please enter your email.");
+    if (!emailValid) {
+      setErrorMsg("Please enter a valid email address.");
       return;
     }
 
     try {
-      await sendPasswordResetEmail(auth, resetEmail);
-      setResetMessage("Reset link sent! Check your inbox and/or Junk.");
+      if (isSignup)
+        await createUserWithEmailAndPassword(auth, email, password);
+      else
+        await signInWithEmailAndPassword(auth, email, password);
+
+      navigate("/parking");
     } catch (error) {
-      console.error("Reset error:", error.message);
-      if (error.code === "auth/user-not-found") {
-        setResetMessage("No account found with that email.");
-      } else {
-        setResetMessage("Error sending reset email.");
-      }
+      if (error.code === "auth/email-already-in-use")
+        setErrorMsg("Email already registered.");
+      else if (error.code === "auth/invalid-credential")
+        setErrorMsg("Invalid email or password.");
+      else if (error.code === "auth/weak-password")
+        setErrorMsg("Password must be at least 6 characters.");
+      else setErrorMsg("Something went wrong. Try again.");
+    }
+  };
+
+  // -------------------------------------------------
+  // 🔵 Forgot password
+  // -------------------------------------------------
+  const handleForgotPassword = async () => {
+    setErrorMsg("");
+
+    if (!email) {
+      setErrorMsg("Enter your email above first.");
+      return;
+    }
+    if (!emailValid) {
+      setErrorMsg("Enter a valid email before resetting.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setErrorMsg(
+        "If an account exists for this email, a reset link has been sent."
+      );
+    } catch (error) {
+      if (error.code === "auth/too-many-requests")
+        setErrorMsg("Too many attempts. Please wait before trying again.");
+      else setErrorMsg("Could not send reset link. Try again later.");
     }
   };
 
   return (
     <div className="login-page">
       <div className="login-card">
+        {/* Title */}
         <h1 className="login-title">
           {isSignup ? "Create Account" : "Welcome Back"}
         </h1>
@@ -161,40 +168,55 @@ function LoginPage() {
         <p className="login-subtitle">
           {isSignup
             ? "Sign up to start using Pin My Park"
-            : "Sign in to continue to Pin My Park"}
+            : "Sign in to continue"}
         </p>
 
         {errorMsg && <p className="error-text">{errorMsg}</p>}
 
+        {/* FORM */}
         <form className="login-form" onSubmit={handleEmailAuth}>
+          
+          {/* Email input */}
           <input
             type="email"
             placeholder="Email address"
+            className={!emailValid ? "invalid-input" : ""}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
+          {!emailValid && (
+            <p className="validation-text">Please enter a valid email.</p>
+          )}
 
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          {/* Password input + eye toggle */}
+          <div className="password-container">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
 
-          {/* 🔵 Forgot password link */}
+            <button
+              type="button"
+              className="eye-button"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? "🙈" : "👁️"}
+            </button>
+          </div>
+
+          {/* Forgot password */}
           {!isSignup && (
-            <p
-              className="forgot-password"
-              onClick={() => {
-                setResetModalOpen(true);
-                setResetEmail(email);
-                setResetMessage("");
-              }}
+            <button
+              type="button"
+              className="forgot-button"
+              onClick={handleForgotPassword}
             >
               Forgot password?
-            </p>
+            </button>
           )}
 
           <button type="submit" className="primary-button">
@@ -202,8 +224,10 @@ function LoginPage() {
           </button>
         </form>
 
+        {/* Divider */}
         <div className="divider">or</div>
 
+        {/* Google login */}
         <button
           className="login-button"
           onClick={handleGoogleLogin}
@@ -216,6 +240,7 @@ function LoginPage() {
           <span>{isLoggingIn ? "Signing in..." : "Continue with Google"}</span>
         </button>
 
+        {/* Toggle login/signup */}
         <p className="toggle-text">
           {isSignup ? "Already have an account?" : "New here?"}{" "}
           <button
@@ -230,6 +255,7 @@ function LoginPage() {
           </button>
         </p>
 
+        {/* Continue without account */}
         <button
           className="secondary-button"
           onClick={() => navigate("/parking")}
@@ -237,37 +263,6 @@ function LoginPage() {
           Continue without an account
         </button>
       </div>
-
-      {/* 🔵 PASSWORD RESET MODAL */}
-      {resetModalOpen && (
-        <div className="reset-overlay">
-          <div className="reset-modal">
-            <h3>Reset Password</h3>
-
-            <input
-              type="email"
-              placeholder="Enter your email"
-              value={resetEmail}
-              onChange={(e) => setResetEmail(e.target.value)}
-            />
-
-            {resetMessage && <p className="reset-message">{resetMessage}</p>}
-
-            <div className="reset-buttons">
-              <button className="primary-button" onClick={handlePasswordReset}>
-                Send Reset Link
-              </button>
-
-              <button
-                className="secondary-button"
-                onClick={() => setResetModalOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
