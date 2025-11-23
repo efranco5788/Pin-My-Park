@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 const PARKING_STORAGE_KEY = "parkingLocation";
 
@@ -8,73 +8,107 @@ const useGeolocation = () => {
   const [timestamp, setTimestamp] = useState(null);
   const [isFetching, setIsFetching] = useState(false);
 
-  // Load saved location from localStorage when the hook initializes
+  // Track active requests without triggering rerenders
+  const isFetchingRef = useRef(false);
+
+  // Load saved location on mount
   useEffect(() => {
-    const savedLocation = localStorage.getItem(PARKING_STORAGE_KEY);
-    if (savedLocation) {
-      const { location, timestamp } = JSON.parse(savedLocation);
-      setLocation(location);
-      setTimestamp(timestamp);
+    try {
+      const savedData = localStorage.getItem(PARKING_STORAGE_KEY);
+      if (!savedData) return;
+
+      const parsed = JSON.parse(savedData);
+      if (!parsed.location) return;
+
+      setLocation(parsed.location);
+      setTimestamp(parsed.timestamp);
+    } catch (err) {
+      console.warn("Failed to parse stored parking location.");
     }
   }, []);
 
-  // Store location in localStorage only when it changes
+  // Save location to local storage when it changes
   useEffect(() => {
-    const savedData = localStorage.getItem(PARKING_STORAGE_KEY);
-    const parsedData = savedData ? JSON.parse(savedData) : null;
-  
-    if (
-      location &&
-      timestamp &&
-      (!parsedData || parsedData.location.latitude !== location.latitude || parsedData.location.longitude !== location.longitude)
-    ) {
-      localStorage.setItem(PARKING_STORAGE_KEY, JSON.stringify({ location, timestamp }));
+    if (!location || !timestamp) return;
+
+    try {
+      const existing = localStorage.getItem(PARKING_STORAGE_KEY);
+      const parsed = existing ? JSON.parse(existing) : {};
+
+      if (
+        !parsed.location ||
+        parsed.location.latitude !== location.latitude ||
+        parsed.location.longitude !== location.longitude
+      ) {
+        localStorage.setItem(
+          PARKING_STORAGE_KEY,
+          JSON.stringify({ location, timestamp })
+        );
+      }
+    } catch (err) {
+      console.warn("Failed to write parking location:", err);
     }
-  }, [location, timestamp]);  
+  }, [location, timestamp]);
 
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      setError("Geolocation is not supported by this browser.");
-      return Promise.reject(new Error("Geolocation not supported"));
+      const message = "Geolocation is not supported by this browser.";
+      setError(message);
+      return Promise.reject(new Error(message));
     }
 
-    if (isFetching) return Promise.reject(new Error("Location request already in progress"));
+    // Prevent multiple calls
+    if (isFetchingRef.current) {
+      return Promise.reject(new Error("Location request already in progress"));
+    }
 
+    isFetchingRef.current = true;
     setIsFetching(true);
+    setError(null); // Clear old errors
 
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
-          const currentTimestamp = new Date().toLocaleString();
 
-          console.log(`Location fetched: ${latitude}, ${longitude} with accuracy: ${accuracy}m`);
+          const safeAccuracy =
+            typeof accuracy === "number" && !Number.isNaN(accuracy)
+              ? accuracy
+              : null;
 
-          /*
-          if (accuracy < 25) {
-            setError(`Low accuracy (${accuracy.toFixed(2)}m). Enable precise location.`);
-            setIsFetching(false);
+          console.log(
+            `Location fetched: ${latitude}, ${longitude} Accuracy: ${safeAccuracy}`
+          );
 
-            return reject(new Error("Low accuracy"));
-          }
-          */
-          setLocation({ latitude, longitude });
+          const currentTimestamp = Date.now();
+
+          setLocation({ latitude, longitude, accuracy: safeAccuracy });
           setTimestamp(currentTimestamp);
-          setError(null); // Clear any previous errors
-          //setIsFetching(false);
 
-          resolve({ latitude, longitude, timestamp: currentTimestamp });
+          resolve({
+            latitude,
+            longitude,
+            accuracy: safeAccuracy,
+            timestamp: currentTimestamp,
+          });
         },
         (err) => {
-          let errorMessage = "An unknown error occurred.";
-          if (err.code === err.PERMISSION_DENIED) errorMessage = "Permission denied. Please allow location access.";
-          if (err.code === err.POSITION_UNAVAILABLE) errorMessage = "Position unavailable.";
-          if (err.code === err.TIMEOUT) errorMessage = "Location request timed out.";
+          let message = "An unknown error occurred.";
 
-          console.error(`Geolocation error: ${errorMessage}`);
-          setError(errorMessage);
-          //setIsFetching(false);
-          reject(new Error(errorMessage));
+          switch (err.code) {
+            case err.PERMISSION_DENIED:
+              message = "Permission denied. Please allow location access.";
+              break;
+            case err.POSITION_UNAVAILABLE:
+              message = "Position unavailable.";
+              break;
+            case err.TIMEOUT:
+              message = "Location request timed out.";
+              break;
+          }
+
+          setError(message);
+          reject(new Error(message));
         },
         {
           enableHighAccuracy: true,
@@ -82,8 +116,11 @@ const useGeolocation = () => {
           maximumAge: 0,
         }
       );
-    }).finally(() => setIsFetching(false));
-  }, [isFetching]);
+    }).finally(() => {
+      isFetchingRef.current = false;
+      setIsFetching(false);
+    });
+  }, []);
 
   return { location, error, timestamp, getLocation, isFetching };
 };
