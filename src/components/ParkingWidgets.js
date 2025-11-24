@@ -22,13 +22,13 @@ export default function ParkingWidgets({
   isParkingSaved,
 }) {
   const displayedLocation =
-    location || { latitude: 40.7128, longitude: -74.0060 };
+    location || { latitude: 39.8283, longitude: -98.5795 };
 
   return (
     <Suspense fallback={<Loader text="Loading map and parking details…" />}>
       {/* Map */}
       <section className="mt-5">
-        <Map location={displayedLocation} />
+        <Map location={displayedLocation} zoom={4} />
       </section>
 
       {/* Only show parking details + navigation if saved */}

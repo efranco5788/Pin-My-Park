@@ -29,7 +29,7 @@ const ParkingLocation = React.lazy(() => import("./components/ParkingLocation"))
 const NavigationButton = React.lazy(() => import("./components/NavigationButton"));
 const TimerDurationSection = React.lazy(() => import("./components/TimerDurationSection"));
 
-const DEFAULT_LOCATION = { latitude: 40.7128, longitude: -74.0060 };
+const DEFAULT_LOCATION = { latitude: 39.8283, longitude: -98.5795 };
 
 function Loader({ text = "Loading…" }) {
   return (
