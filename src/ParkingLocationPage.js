@@ -1,5 +1,4 @@
 // src/ParkingLocationPage.js
-
 /** ----------------------------- Imports: Libraries ----------------------------- */
 import React, { useState, useEffect, Suspense } from "react";
 import { Helmet } from "react-helmet";
@@ -23,11 +22,17 @@ import AccordionButton from "./components/AccordionButton";
 import HowItWorksModal from "./components/HowItWorksModal";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import TermsOfServiceModal from "./components/TermsOfServiceModal";
-import { Modal, Button } from "react-bootstrap";
+import { Modal, Button, OverlayTrigger, Tooltip } from "react-bootstrap";
 
 /** --------------------------------- Styles ------------------------------------ */
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./styles.css";
+
+/** ------------------------------- Service ------------------------------------- */
+import {
+  buildParkingPayload,
+  saveParkingSpot,
+} from "./services/parkingService";
 
 /** ----------------------------- Lazy-loaded chunks ---------------------------- */
 // why: defer heavier UI to speed up initial paint
@@ -43,7 +48,7 @@ const SEO = {
   description:
     "Pin My Park helps you remember exactly where you parked with GPS precision. Save, manage, and navigate back to your car quickly and stress-free.",
   keywords: "parking app, GPS, car locator, find my car, parking reminder",
-}
+};
 
 /** --------------------------- Small UI Subcomponents --------------------------- */
 function Loader({ text = "Loading…" }) {
@@ -92,6 +97,14 @@ function ParkingLocationPage() {
   /** --------------------------- Sync queue (optimistic) ------------------------- */
   const { queue, isSyncing, addToQueue, syncAll } = useSyncQueue();
 
+  /** --------------------------- Capability checks (a11y) ------------------------ */
+  // why: High-precision needs Geolocation API and HTTPS context
+  const supportsGeolocation =
+    typeof navigator !== "undefined" && "geolocation" in navigator;
+  const secureContext =
+    typeof window !== "undefined" && Boolean(window.isSecureContext);
+  const canUseHighPrecision = supportsGeolocation && secureContext;
+
   /** ---------------------------------- Effects --------------------------------- */
   useEffect(() => {
     // why: if timer state restored and we have a saved spot, ensure timer is running
@@ -107,71 +120,63 @@ function ParkingLocationPage() {
     return () => clearTimeout(t);
   }, [errorMessage, hideModal]);
 
+  useEffect(() => {
+    // why: inform users once if high precision is unavailable
+    if (!canUseHighPrecision) {
+      toast.info("High precision requires device geolocation over HTTPS.", {
+        position: "top-center",
+        autoClose: 3000,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canUseHighPrecision]);
+
   /** --------------------------------- Handlers --------------------------------- */
   const handleSaveParking = async () => {
     setIsLoadingLocal(true);
     try {
+      // 0) Acquire location
       const locationData = await getLocation();
       if (!locationData?.latitude || !locationData?.longitude) {
         throw new Error("Failed to get a valid location. Please try again.");
       }
 
-      // 1) Save locally immediately (optimistic UI)
+      // 1) Optimistic local save (instant feedback)
       saveParkingLocation(
         { latitude: locationData.latitude, longitude: locationData.longitude },
         locationData.timestamp || Date.now()
       );
 
-      const payload = {
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-        address: address || "",
-        floor: additionalInfo?.floor || "",
-        section: additionalInfo?.section || "",
-        name: additionalInfo?.name || "",
-      };
+      // 2) Build normalized payload (single source of truth)
+      const payload = buildParkingPayload(additionalInfo, address, locationData);
 
-      const user = auth.currentUser;
+      // 3) Delegate remote/queue persistence to service
+      const result = await saveParkingSpot(payload, {
+        user: auth.currentUser,
+        online: typeof navigator !== "undefined" ? navigator.onLine : false,
+        addDoc,
+        collection,
+        serverTimestamp,
+        db,
+        addToQueue,
+        syncAll,
+      });
 
-      // 2) Offline or no user → queue for later sync
-      if (!user || !navigator.onLine) {
-        addToQueue(payload);
-        toast.info("📡 Saved offline — will sync when online.", {
-          position: "top-center",
-          autoClose: 3000,
-        });
-        stopTimer();
-        startTimer();
-        return;
-      }
+      // 4) Timers + user feedback
+      stopTimer();
+      startTimer();
 
-      // 3) Online & authed → attempt Firestore write
-      try {
-        await addDoc(collection(db, "parkingHistory", user.uid, "spots"), {
-          ...payload,
-          timestamp: serverTimestamp(),
-        });
-
+      if (result.status === "saved") {
         toast.success("✅ Parking spot saved to your history!", {
           position: "top-center",
           autoClose: 3000,
         });
-
-        // best-effort flush of any backlog
-        syncAll();
-      } catch (fireErr) {
-        // why: on transient failure, keep data via queue for reliability
-        console.warn("Firestore write failed; queued for retry.", fireErr);
-        addToQueue(payload);
-        toast.error("❌ Failed to upload — saved offline instead.", {
-          position: "top-center",
-          autoClose: 4000,
-        });
+      } else if (result.status === "queued") {
+        const msg = result.error
+          ? "❌ Upload failed — saved offline. Will retry."
+          : "📡 Saved offline — will sync when online.";
+        toast.info(msg, { position: "top-center", autoClose: 3500 });
       }
-
-      // (Re)start timer after a successful local save
-      stopTimer();
-      startTimer();
     } catch (err) {
       console.error("Error saving parking:", err);
       showError(err?.message || "Failed to save parking.");
@@ -202,6 +207,16 @@ function ParkingLocationPage() {
 
   /** -------------------------------- Derived props ------------------------------ */
   const displayedLocation = location || DEFAULT_LOCATION;
+
+  /** -------------------------- Tooltip content builder -------------------------- */
+  // why: decoupled content based on support
+  const renderHighPrecisionTip = (props) => (
+    <Tooltip id="hp-tooltip" {...props}>
+      {canUseHighPrecision
+        ? "Use higher GPS accuracy (may increase battery usage)."
+        : "High precision needs device geolocation over HTTPS."}
+    </Tooltip>
+  );
 
   /** ----------------------------------- Render --------------------------------- */
   return (
@@ -286,13 +301,52 @@ function ParkingLocationPage() {
           </small>
         )}
 
-        {/* High precision toggle */}
-        <div style={{ marginTop: 10 }}>
-          <label style={{ color: "#ecf0f1", fontSize: 13 }}>
-            <input type="checkbox" checked={highPrecision} onChange={toggleHighPrecision} />{" "}
+        {/* High precision toggle (gated + info icon tooltip) */}
+        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+          <label style={{ color: "#ecf0f1", fontSize: 13, margin: 0 }}>
+            <input
+              type="checkbox"
+              checked={!!highPrecision && canUseHighPrecision}
+              onChange={toggleHighPrecision}
+              disabled={!canUseHighPrecision}
+              aria-disabled={!canUseHighPrecision}
+              aria-describedby="hp-help"
+              style={{ marginRight: 6 }}
+            />
             High precision mode
           </label>
+
+          {/* Info icon button with tooltip */}
+          <OverlayTrigger
+            placement="top"
+            trigger={["hover", "focus", "click"]} // why: mobile-friendly
+            delay={{ show: 100, hide: 100 }}
+            overlay={renderHighPrecisionTip}
+          >
+            <button
+              type="button"
+              aria-label="High precision information"
+              className="btn btn-sm btn-outline-light rounded-circle"
+              style={{
+                width: 28,
+                height: 28,
+                lineHeight: "1",
+                padding: 0,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span aria-hidden="true" style={{ fontWeight: 700 }}>i</span>
+            </button>
+          </OverlayTrigger>
         </div>
+
+        {!canUseHighPrecision && (
+          <div id="hp-help" style={{ color: "#ffd166", fontSize: 12, marginTop: 4 }}>
+            High precision unavailable on this device or connection (needs HTTPS & Geolocation).
+          </div>
+        )}
 
         {/* Sync status */}
         <div style={{ marginTop: 10 }}>
