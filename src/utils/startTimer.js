@@ -1,13 +1,14 @@
 // src/utils/startTimer.js
-// Single-instance, drift-corrected timer across tabs via BroadcastChannel.
-// Leader tab runs the loop; followers render ticks only.
 
+/** ============================ Constants & Config ============================= */
+// why: Centralize tuning knobs for easy experimentation / testing
 const CHANNEL_NAME = "pmp-timer-v1";
-const HB_INTERVAL_MS = 1000;     // heartbeat period
-const LEADER_TIMEOUT_MS = 3000;  // promote if no heartbeat
-const ELECTION_BACKOFF_MS = 300; // random 0..N to reduce collisions
-const HIDDEN_THROTTLE_MS = 15000;
+const HB_INTERVAL_MS = 1000;     // leader heartbeat cadence
+const LEADER_TIMEOUT_MS = 3000;  // if no heartbeat, followers may elect
+const ELECTION_BACKOFF_MS = 300; // random delay to reduce election collisions
+const HIDDEN_THROTTLE_MS = 15000; // reduce CPU/battery when tab is hidden
 
+/** ================================ Tiny Utils ================================= */
 function hasBC() {
   return typeof BroadcastChannel !== "undefined";
 }
@@ -18,15 +19,18 @@ function isHidden() {
   return typeof document !== "undefined" && !!document.hidden;
 }
 
-/** Drift-corrected scheduler using setTimeout (not setInterval) */
-function createAlignedScheduler(tick, { hiddenMs = HIDDEN_THROTTLE_MS } = {}) {
+/** ======================= Drift-corrected local scheduler ====================== *
+ * Uses setTimeout with alignment to avoid drift; throttles when hidden.
+ * Emits only when the visible "second" changes to limit re-renders.
+ */
+export function createAlignedScheduler(tick, { hiddenMs = HIDDEN_THROTTLE_MS } = {}) {
   let running = false;
   let startTs = 0;
   let timeoutId = null;
   let lastEmittedSec = -1;
 
   function clear() {
-    if (timeoutId) {
+    if (timeoutId !== null) {
       clearTimeout(timeoutId);
       timeoutId = null;
     }
@@ -34,6 +38,7 @@ function createAlignedScheduler(tick, { hiddenMs = HIDDEN_THROTTLE_MS } = {}) {
 
   function schedule() {
     if (!running) return;
+
     const t = now();
     const elapsedMs = Math.max(0, t - startTs);
     const elapsedSec = Math.floor(elapsedMs / 1000);
@@ -45,13 +50,13 @@ function createAlignedScheduler(tick, { hiddenMs = HIDDEN_THROTTLE_MS } = {}) {
 
     const delay = isHidden()
       ? hiddenMs
-      : Math.max(10, 1000 - (elapsedMs % 1000));
+      : Math.max(10, 1000 - (elapsedMs % 1000)); // align to next wall-clock second
     timeoutId = setTimeout(schedule, delay);
   }
 
   return {
     start: (startTimestampMs = now()) => {
-      if (running) return;
+      if (running) return; // idempotent
       running = true;
       startTs = startTimestampMs;
       lastEmittedSec = -1;
@@ -66,96 +71,74 @@ function createAlignedScheduler(tick, { hiddenMs = HIDDEN_THROTTLE_MS } = {}) {
   };
 }
 
-/** Broadcast-enabled timer orchestrator */
-function createDistributedTimer({ onTick } = {}) {
-  let role = "idle"; // 'leader' | 'follower' | 'idle'
+/** ===================== BroadcastChannel distributed timer ===================== *
+ * One leader per origin runs the loop and broadcasts:
+ * - Heartbeats: liveness signal.
+ * - Ticks: elapsed seconds for followers to render.
+ * Followers do not schedule; they only render received ticks.
+ */
+export function createDistributedTimer({ onTick } = {}) {
+  let role = "idle"; // "leader" | "follower" | "idle"
   let bc = null;
   let scheduler = createAlignedScheduler(handleLocalTick);
   let hbId = null;
-  let lastSeen = 0;
+  let lastSeen = 0;   // last time we observed a leader signal
   let started = false;
 
   function safePost(msg) {
-    try {
-      bc && bc.postMessage(msg);
-    } catch {}
+    try { bc && bc.postMessage(msg); } catch {}
   }
 
   function handleLocalTick(elapsedSec, startTs) {
-    // Leader: emit and broadcast
     if (role === "leader") {
       onTick && onTick(elapsedSec);
       safePost({ type: "tick", sec: elapsedSec, startTs });
-    } else {
-      // Follower shouldn't be scheduling local ticks
     }
+    // followers should not reach here (they don't run scheduler)
   }
 
   function handleMessage(ev) {
     const msg = ev?.data;
     if (!msg || typeof msg !== "object") return;
 
-    if (msg.type === "hb") {
-      lastSeen = performance.now ? performance.now() : now();
+    if (msg.type === "hb" || msg.type === "leader-announcement" || msg.type === "tick") {
+      // why: update liveness timestamp on any leader activity
+      lastSeen = (typeof performance !== "undefined" && performance.now) ? performance.now() : now();
+    }
+
+    if (msg.type === "tick" && role !== "leader") {
+      role = "follower";
+      started = true;
+      onTick && onTick(msg.sec);
       return;
     }
 
-    if (msg.type === "tick") {
-      lastSeen = performance.now ? performance.now() : now();
-      // Followers render ticks
-      if (role !== "leader") {
-        role = "follower";
-        started = true;
-        onTick && onTick(msg.sec);
-      }
-      return;
-    }
-
-    if (msg.type === "leader-announcement") {
-      lastSeen = performance.now ? performance.now() : now();
-      if (role !== "leader") role = "follower";
-      return;
-    }
-
-    if (msg.type === "stop") {
+    if (msg.type === "stop" || msg.type === "reset") {
       if (role !== "leader") {
         started = false;
-        onTick && onTick(0);
+        onTick && onTick(0); // reset follower UI
       }
-      return;
-    }
-
-    if (msg.type === "reset") {
-      if (role !== "leader") {
-        started = false;
-        onTick && onTick(0);
-      }
-      return;
     }
   }
 
   function startHeartbeat() {
     stopHeartbeat();
-    hbId = setInterval(() => {
-      safePost({ type: "hb", t: now() });
-    }, HB_INTERVAL_MS);
+    hbId = setInterval(() => safePost({ type: "hb", t: now() }), HB_INTERVAL_MS);
   }
   function stopHeartbeat() {
-    if (hbId) {
+    if (hbId !== null) {
       clearInterval(hbId);
       hbId = null;
     }
   }
 
   function electLeader(startTsArg) {
-    // Simple randomized election; cancel if a leader heartbeat arrives.
+    // why: random backoff reduces simultaneous self-promotion
     const backoff = Math.floor(Math.random() * ELECTION_BACKOFF_MS);
-    const startPerf = performance.now ? performance.now() : now();
     const timer = setTimeout(() => {
-      const ts = performance.now ? performance.now() : now();
+      const ts = (typeof performance !== "undefined" && performance.now) ? performance.now() : now();
       const stale = ts - lastSeen > LEADER_TIMEOUT_MS;
       if (stale && role !== "leader") {
-        // Become leader
         role = "leader";
         safePost({ type: "leader-announcement", t: now() });
         scheduler.start(startTsArg || now());
@@ -163,9 +146,10 @@ function createDistributedTimer({ onTick } = {}) {
       }
     }, backoff);
 
-    // If heartbeat arrives during backoff, abandon election
+    // why: abort election if a leader speaks during backoff
     const cancelOnHB = (ev) => {
-      if (ev?.data?.type === "hb" || ev?.data?.type === "leader-announcement" || ev?.data?.type === "tick") {
+      const t = ev?.data?.type;
+      if (t === "hb" || t === "leader-announcement" || t === "tick") {
         clearTimeout(timer);
         bc && bc.removeEventListener("message", cancelOnHB);
       }
@@ -178,8 +162,7 @@ function createDistributedTimer({ onTick } = {}) {
     if (!hasBC()) return false;
     bc = new BroadcastChannel(CHANNEL_NAME);
     bc.addEventListener("message", handleMessage);
-    // mark leader presence time as "long ago" initially
-    lastSeen = -Infinity;
+    lastSeen = -Infinity; // treat as stale until a signal arrives
     return true;
   }
 
@@ -188,19 +171,17 @@ function createDistributedTimer({ onTick } = {}) {
     started = true;
 
     if (!ensureBC()) {
-      // Fallback: no BroadcastChannel → local only
+      // why: fallback for browsers without BroadcastChannel
       role = "leader";
       scheduler.start(startTimestampMs || now());
       return;
     }
 
-    // Probe for a leader; if none, elect
-    const seenRecently = (performance.now ? performance.now() : now()) - lastSeen <= LEADER_TIMEOUT_MS;
-    if (!seenRecently) {
-      electLeader(startTimestampMs);
-    } else {
-      role = "follower";
-    }
+    // If we haven't seen a leader recently, run an election; else follow.
+    const ts = (typeof performance !== "undefined" && performance.now) ? performance.now() : now();
+    const seenRecently = ts - lastSeen <= LEADER_TIMEOUT_MS;
+    if (!seenRecently) electLeader(startTimestampMs);
+    else role = "follower";
   }
 
   function stop({ reset = false } = {}) {
@@ -228,7 +209,9 @@ function createDistributedTimer({ onTick } = {}) {
   return { start, stop, destroy, isRunning };
 }
 
-/** Public API: React-friendly adapters (matches previous usage) */
+/** ============================ React Adapter (UI) ============================== *
+ * Singleton binds to a given setElapsedTime; exposes old API for easy migration.
+ */
 const singleton = (() => {
   let distributed = null;
   let boundSetElapsed = null;
@@ -237,9 +220,7 @@ const singleton = (() => {
     get(setElapsedTime) {
       if (!distributed || boundSetElapsed !== setElapsedTime) {
         boundSetElapsed = setElapsedTime;
-        distributed = createDistributedTimer({
-          onTick: (sec) => setElapsedTime(sec),
-        });
+        distributed = createDistributedTimer({ onTick: (sec) => setElapsedTime(sec) });
       }
       return distributed;
     },
@@ -251,9 +232,13 @@ const singleton = (() => {
   };
 })();
 
+/** =============================== Public API ================================== *
+ * Matches previous usage: startTimer/stopTimer/resetTimer.
+ * Only comments on the "why" to keep code self-explanatory.
+ */
 function startTimer(setTimerRunning, setElapsedTime, startTimestampMs) {
   const dt = singleton.get(setElapsedTime);
-  if (dt.isRunning()) return; // avoid duplicate leaders
+  if (dt.isRunning()) return; // why: avoid duplicate leaders/loops
   setTimerRunning(true);
   dt.start(startTimestampMs);
 }
@@ -262,7 +247,7 @@ function stopTimer(setTimerRunning, setElapsedTime, { reset = false } = {}) {
   const dt = singleton.get(setElapsedTime);
   dt.stop({ reset });
   setTimerRunning(false);
-  if (reset) setElapsedTime(0);
+  if (reset) setElapsedTime(0); // why: reflect reset immediately in UI
 }
 
 function resetTimer(setTimerRunning, setElapsedTime) {
@@ -273,7 +258,7 @@ export default {
   startTimer,
   stopTimer,
   resetTimer,
-  // exposed for testing/advanced hooks
+  // exposed for tests/advanced control
   createDistributedTimer,
   createAlignedScheduler,
 };
