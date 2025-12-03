@@ -1,36 +1,51 @@
 // src/ParkingLocationPage.js
+
+/** ----------------------------- Imports: Libraries ----------------------------- */
 import React, { useState, useEffect, Suspense } from "react";
 import { Helmet } from "react-helmet";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+/** ----------------------------- Imports: Firebase ------------------------------ */
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "./firebaseConfig";
+
+/** ------------------------------- Imports: Hooks ------------------------------- */
 import useParkingLocation from "./hooks/useParkingLocation";
 import useGeolocation from "./hooks/useGeolocation";
 import usePersistentTimer from "./hooks/usePersistentTimer";
-import ParkingWidgets from "./components/ParkingWidgets";
-
 import useModals from "./hooks/useModals";
 import useSyncQueue from "./hooks/useSyncQueue";
 
+/** ---------------------------- Imports: Components ----------------------------- */
+import ParkingWidgets from "./components/ParkingWidgets";
 import AccordionButton from "./components/AccordionButton";
 import HowItWorksModal from "./components/HowItWorksModal";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import TermsOfServiceModal from "./components/TermsOfServiceModal";
 import { Modal, Button } from "react-bootstrap";
 
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db, auth } from "./firebaseConfig";
-
+/** --------------------------------- Styles ------------------------------------ */
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./styles.css";
 
+/** ----------------------------- Lazy-loaded chunks ---------------------------- */
+// why: defer heavier UI to speed up initial paint
 const Map = React.lazy(() => import("./components/Maps"));
 const ParkingLocation = React.lazy(() => import("./components/ParkingLocation"));
 const NavigationButton = React.lazy(() => import("./components/NavigationButton"));
 const TimerDurationSection = React.lazy(() => import("./components/TimerDurationSection"));
 
-const DEFAULT_LOCATION = { latitude: 39.8283, longitude: -98.5795 };
+/** -------------------------------- Constants ---------------------------------- */
+const DEFAULT_LOCATION = { latitude: 39.8283, longitude: -98.5795 }; // USA centroid
+const SEO = {
+  title: "Pin My Park – Find & Save Your Parking Location Easily",
+  description:
+    "Pin My Park helps you remember exactly where you parked with GPS precision. Save, manage, and navigate back to your car quickly and stress-free.",
+  keywords: "parking app, GPS, car locator, find my car, parking reminder",
+}
 
+/** --------------------------- Small UI Subcomponents --------------------------- */
 function Loader({ text = "Loading…" }) {
   return (
     <div style={{ padding: 20, textAlign: "center", color: "#ecf0f1" }}>
@@ -39,11 +54,16 @@ function Loader({ text = "Loading…" }) {
   );
 }
 
+/** =============================================================================
+ * ParkingLocationPage
+ * Purpose: Manage capture/clear of parking info with optimistic offline queue,
+ *          timer lifecycle, error handling, and consolidated widgets.
+ * =========================================================================== */
 function ParkingLocationPage() {
-  // local UI state
+  /** ------------------------------- Local UI state ------------------------------ */
   const [isLoadingLocal, setIsLoadingLocal] = useState(false);
 
-  // domain hooks
+  /** ------------------------------- Domain hooks -------------------------------- */
   const {
     location,
     timestamp,
@@ -66,40 +86,37 @@ function ParkingLocationPage() {
     hasRestored,
   } = usePersistentTimer(isParkingSaved);
 
-  // modal management
+  /** ------------------------------ Modal management ----------------------------- */
   const { activeModal, errorMessage, showModal, hideModal, showError } = useModals();
 
-  // sync queue for optimistic writes
+  /** --------------------------- Sync queue (optimistic) ------------------------- */
   const { queue, isSyncing, addToQueue, syncAll } = useSyncQueue();
 
-  // Keep timer behavior on restore
+  /** ---------------------------------- Effects --------------------------------- */
   useEffect(() => {
+    // why: if timer state restored and we have a saved spot, ensure timer is running
     if (hasRestored && isParkingSaved && !timerRunning) {
       startTimer();
     }
   }, [hasRestored, isParkingSaved, timerRunning, startTimer]);
 
-  // auto-hide error modal if it appears
   useEffect(() => {
-    if (errorMessage) {
-      const t = setTimeout(() => {
-        hideModal();
-      }, 5000);
-      return () => clearTimeout(t);
-    }
+    // why: auto-dismiss error modal to avoid trapping keyboard focus
+    if (!errorMessage) return;
+    const t = setTimeout(() => hideModal(), 5000);
+    return () => clearTimeout(t);
   }, [errorMessage, hideModal]);
 
-  // Handlers (with optimistic queue integration)
+  /** --------------------------------- Handlers --------------------------------- */
   const handleSaveParking = async () => {
     setIsLoadingLocal(true);
-
     try {
       const locationData = await getLocation();
       if (!locationData?.latitude || !locationData?.longitude) {
         throw new Error("Failed to get a valid location. Please try again.");
       }
 
-      // 1) Save locally immediately
+      // 1) Save locally immediately (optimistic UI)
       saveParkingLocation(
         { latitude: locationData.latitude, longitude: locationData.longitude },
         locationData.timestamp || Date.now()
@@ -116,20 +133,19 @@ function ParkingLocationPage() {
 
       const user = auth.currentUser;
 
-      // 2) If no user or offline -> queue and inform user
+      // 2) Offline or no user → queue for later sync
       if (!user || !navigator.onLine) {
         addToQueue(payload);
         toast.info("📡 Saved offline — will sync when online.", {
           position: "top-center",
           autoClose: 3000,
         });
-
         stopTimer();
         startTimer();
         return;
       }
 
-      // 3) Try direct Firestore write
+      // 3) Online & authed → attempt Firestore write
       try {
         await addDoc(collection(db, "parkingHistory", user.uid, "spots"), {
           ...payload,
@@ -141,10 +157,10 @@ function ParkingLocationPage() {
           autoClose: 3000,
         });
 
-        // try flush queued items as well
+        // best-effort flush of any backlog
         syncAll();
       } catch (fireErr) {
-        // on failure, queue item and notify user
+        // why: on transient failure, keep data via queue for reliability
         console.warn("Firestore write failed; queued for retry.", fireErr);
         addToQueue(payload);
         toast.error("❌ Failed to upload — saved offline instead.", {
@@ -153,6 +169,7 @@ function ParkingLocationPage() {
         });
       }
 
+      // (Re)start timer after a successful local save
       stopTimer();
       startTimer();
     } catch (err) {
@@ -168,7 +185,7 @@ function ParkingLocationPage() {
   };
 
   const handleClearParking = async () => {
-    // clear local + reset timers + toast
+    // why: local clear + timer reset should always succeed, independent of network
     try {
       clearParkingLocation();
       stopTimer();
@@ -183,32 +200,26 @@ function ParkingLocationPage() {
     }
   };
 
+  /** -------------------------------- Derived props ------------------------------ */
   const displayedLocation = location || DEFAULT_LOCATION;
 
+  /** ----------------------------------- Render --------------------------------- */
   return (
     <main
       className="container-fluid d-flex flex-column justify-content-between bg-custom-gradient"
-      style={{
-        minHeight: "calc(100vh - 50px)",
-        padding: "20px",
-        color: "#ecf0f1",
-      }}
+      style={{ minHeight: "calc(100vh - 50px)", padding: "20px", color: "#ecf0f1" }}
     >
+      {/* SEO */}
       <Helmet>
-        <title>Pin My Park – Find & Save Your Parking Location Easily</title>
-        <meta
-          name="description"
-          content="Pin My Park helps you remember exactly where you parked with GPS precision. Save, manage, and navigate back to your car quickly and stress-free."
-        />
-        <meta
-          name="keywords"
-          content="parking app, GPS, car locator, find my car, parking reminder"
-        />
+        <title>{SEO.title}</title>
+        <meta name="description" content={SEO.description} />
+        <meta name="keywords" content={SEO.keywords} />
       </Helmet>
 
+      {/* Global toasts */}
       <ToastContainer theme="colored" />
 
-      {/* Intro */}
+      {/* Intro copy */}
       <header className="text-center mt-3">
         <p
           style={{
@@ -231,7 +242,7 @@ function ParkingLocationPage() {
         </button>
       </div>
 
-      {/* Additional info */}
+      {/* Additional info (persist floor/section to local store) */}
       <section className="mt-5">
         <AccordionButton
           title="Additional Information"
@@ -255,14 +266,18 @@ function ParkingLocationPage() {
         </AccordionButton>
       </section>
 
-      {/* Controls */}
+      {/* Primary controls */}
       <section className="d-flex flex-column align-items-center mt-4" id="btnSection">
         <button
           className={`modern-btn btn-lg shadow ${isParkingSaved ? "btn-warning" : "btn-primary pulse-animation"}`}
           onClick={isParkingSaved ? handleClearParking : handleSaveParking}
           disabled={isSyncing || isFetching || isLoadingLocal}
         >
-          {isParkingSaved ? "Clear Parking Info" : (isSyncing || isFetching || isLoadingLocal) ? "Saving..." : "Save My Parking Spot"}
+          {isParkingSaved
+            ? "Clear Parking Info"
+            : (isSyncing || isFetching || isLoadingLocal)
+            ? "Saving..."
+            : "Save My Parking Spot"}
         </button>
 
         {!isParkingSaved && (
@@ -271,11 +286,11 @@ function ParkingLocationPage() {
           </small>
         )}
 
-        {/* High precision toggle (optional UI) */}
+        {/* High precision toggle */}
         <div style={{ marginTop: 10 }}>
           <label style={{ color: "#ecf0f1", fontSize: 13 }}>
-            <input type="checkbox" checked={highPrecision} onChange={toggleHighPrecision} />
-            {" "}High precision mode
+            <input type="checkbox" checked={highPrecision} onChange={toggleHighPrecision} />{" "}
+            High precision mode
           </label>
         </div>
 
@@ -289,7 +304,7 @@ function ParkingLocationPage() {
         </div>
       </section>
 
-      {/* Loading spinner */}
+      {/* Loading indicator (geo fetch / local save / queue sync) */}
       {(isSyncing || isFetching || isLoadingLocal) && (
         <div className="spinner-border text-primary mt-3" role="status" aria-live="polite" />
       )}
@@ -304,7 +319,7 @@ function ParkingLocationPage() {
         />
       </Suspense>
 
-      {/* Error modal uses single modal system via useModals */}
+      {/* Error modal (centralized via useModals) */}
       <Modal show={activeModal === "error"} onHide={() => hideModal()} centered>
         <Modal.Header closeButton>
           <Modal.Title>Error</Modal.Title>
@@ -331,10 +346,18 @@ function ParkingLocationPage() {
           save your car’s location and find it later easily.
         </p>
         <div>
-          <button className="btn btn-link text-light p-0 me-3" style={{ textDecoration: "underline" }} onClick={() => showModal("privacy")}>
+          <button
+            className="btn btn-link text-light p-0 me-3"
+            style={{ textDecoration: "underline" }}
+            onClick={() => showModal("privacy")}
+          >
             Privacy Policy
           </button>
-          <button className="btn btn-link text-light p-0" style={{ textDecoration: "underline" }} onClick={() => showModal("terms")}>
+          <button
+            className="btn btn-link text-light p-0"
+            style={{ textDecoration: "underline" }}
+            onClick={() => showModal("terms")}
+          >
             Terms of Service
           </button>
         </div>
