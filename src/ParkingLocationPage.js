@@ -1,4 +1,5 @@
 // src/ParkingLocationPage.js
+
 /** ----------------------------- Imports: Libraries ----------------------------- */
 import React, { useState, useEffect, Suspense } from "react";
 import { Helmet } from "react-helmet";
@@ -104,6 +105,16 @@ function ParkingLocationPage() {
   const secureContext =
     typeof window !== "undefined" && Boolean(window.isSecureContext);
   const canUseHighPrecision = supportsGeolocation && secureContext;
+
+  /** ------------------------------- Helpers ------------------------------------ */
+  // why: present seconds as HH:MM:SS without extra state
+  const formatDuration = (totalSec = 0) => {
+    const s = Math.max(0, Number(totalSec) | 0);
+    const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  };
 
   /** ---------------------------------- Effects --------------------------------- */
   useEffect(() => {
@@ -357,6 +368,28 @@ function ParkingLocationPage() {
           )}
         </div>
       </section>
+
+      {/* --- Timer readout (visible display of elapsedTime) --- */}
+      {(timerRunning || isParkingSaved) && (
+        <section
+          className="d-flex flex-column align-items-center mt-3"
+          aria-live="polite" // why: announce updates accessibly
+        >
+          <div
+            style={{
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+              fontSize: 28,
+              letterSpacing: 1,
+            }}
+          >
+            {formatDuration(elapsedTime)}
+          </div>
+          <small className="text-muted" style={{ marginTop: 4 }}>
+            Time parked
+          </small>
+        </section>
+      )}
 
       {/* Loading indicator (geo fetch / local save / queue sync) */}
       {(isSyncing || isFetching || isLoadingLocal) && (
